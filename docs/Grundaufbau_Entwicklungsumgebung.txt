@@ -1,0 +1,17 @@
+# Archiviert: Grundaufbau Entwicklungsumgebung
+
+Status: archiviert. Aktuelle Entwicklungsuebersicht siehe `../05_Entwicklung.md`.
+
+Alter Inhalt:
+
+```text
+| Werkzeug                 | Zweck                                           |
+| ------------------------ | ----------------------------------------------- |
+| VS Code                  | Haupt-IDE                                       |
+| PlatformIO Extension     | ESP32-Projektverwaltung, Build, Upload, Monitor |
+| Git                      | Versionsverwaltung                              |
+| GitHub-Konto             | Repository fuer Codex                           |
+| Codex                    | KI-Coding-Agent                                 |
+| Arduino IDE              | Reserve, Library-Vergleich, einfacher Upload    |
+| USB-Treiber              | ESP32 wird korrekt erkannt                      |
+```
