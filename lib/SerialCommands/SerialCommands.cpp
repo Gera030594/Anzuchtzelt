@@ -28,7 +28,8 @@ void changeLogMaybe(unsigned long now) {
   bool pctChanged = (lastPctOut == -1000) || (abs(pctNow - lastPctOut) >= DEAD_BAND_PCT);
   bool tChanged = (T10 != lastT10);
   bool hChanged = (RH10 != lastRH10);
-  bool setChanged = (targetPct != lastTargetPct);
+  int currentTargetPct = getMotorTargetPct();
+  bool setChanged = (currentTargetPct != lastTargetPct);
 
   if (!(pctChanged || tChanged || hChanged || setChanged)) return;
 
@@ -36,7 +37,7 @@ void changeLogMaybe(unsigned long now) {
   lastPctOut = pctNow;
   lastT10 = T10;
   lastRH10 = RH10;
-  lastTargetPct = targetPct;
+  lastTargetPct = currentTargetPct;
   lastPotiRaw = potiRawNow;
   lastLogMs = now;
 
@@ -57,7 +58,7 @@ void changeLogMaybe(unsigned long now) {
   Serial.print(" | Ist%=");
   Serial.print(pctNow);
   Serial.print(" | Soll%=");
-  Serial.println(targetPct);
+  Serial.println(currentTargetPct);
 }
 
 void printStatus() {
@@ -82,7 +83,7 @@ void printStatus() {
   Serial.print(F("Ist%: "));
   Serial.println(pctNow);
   Serial.print(F("Soll%: "));
-  Serial.println(targetPct);
+  Serial.println(getMotorTargetPct());
   Serial.print(F("Heartbeat RX vor (ms): "));
   Serial.println(millis() - lastHB_RX_ms);
   Serial.print(F("Motor aktiv: "));

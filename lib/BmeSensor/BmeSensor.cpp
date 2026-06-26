@@ -119,7 +119,7 @@ void bmeInitialCheck() {
     if (!potiValid) {                                                      // Poti auch fehlerhaft?
       ledSet(3, C(255, 0, 0));                                             // LED3 rot (Poti Fehler)
     } else {                                                               // Poti ok -> auf 25% fahren (Failsafe)
-      targetPct = 25;                                                      // Ziel 25%
+      setMotorTargetPct(25);                                               // Ziel 25%
       ledSet(3, C(0, 255, 0));                                             // LED3 grün (Failsafe aktiv)
       moveActive = true;
       moveStart_ms = millis();  // Bewegung starten
@@ -136,7 +136,7 @@ void bmeInitialCheck() {
       potiValid = (potiRawNow > POTI_MIN_RAW && potiRawNow < POTI_MAX_RAW);
       if (!potiValid) ledSet(3, C(255, 0, 0));  // Poti fehlerhaft -> LED3 rot
       else {
-        targetPct = 25;
+        setMotorTargetPct(25);
         ledSet(3, C(0, 255, 0));
         moveActive = true;
         moveStart_ms = millis();
@@ -180,14 +180,14 @@ void bme680Task(unsigned long now) {
       bmeBadStreak = 0;
       lastBMEGood_ms = now;
       int newTarget = tempToSetpoint(T);
-      if (newTarget != targetPct) targetPct = newTarget;
+      if (newTarget != getMotorTargetPct()) setMotorTargetPct(newTarget);
     } else {
       // Fehler/Failsafe
       bmeBadStreak++;
       if (bmeBadStreak >= BME_BAD_LIMIT) bmeOK = false;
       if (!potiValid) ledSet(3, C(255, 0, 0));
       else {
-        targetPct = 25;
+        setMotorTargetPct(25);
         ledSet(3, C(0, 255, 0));
         moveActive = true;
         moveStart_ms = now;
@@ -205,7 +205,7 @@ void bme680Task(unsigned long now) {
     if (!potiValid) {
       ledSet(3, C(255, 0, 0));
     } else {
-      targetPct = 25;
+      setMotorTargetPct(25);
       ledSet(3, C(0, 255, 0));
       moveActive = true;
       moveStart_ms = now;
