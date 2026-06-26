@@ -74,10 +74,7 @@ void heartbeatTask(unsigned long now) {
   // ===== Edge-getriggerter FAILSAFE nur beim Eintreten des Timeouts =====
   if (timedOut && !hbTimeoutLatched) {
     hbTimeoutLatched = true;  // nur EINMAL pro Timeout
-    /*if (potiValid) {
-      targetPct = 25;  // Failsafe wegen HB
-      Serial.println(F("[HB] TIMEOUT → FAILSAFE target=25% (edge)"));
-    }*/
+   
   }
   // Relais: erst nach abgelaufener Schonfrist/Timeout auslösen
   // Nur auslösen, wenn Timeout UND Cooldown abgelaufen

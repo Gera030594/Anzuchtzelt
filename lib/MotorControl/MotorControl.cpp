@@ -9,6 +9,8 @@
 #include "PotiFeedback.h"
 
 int targetPct = 25;                          // Soll-Position in %
+int activeTargetPct = 25;                    // Zielwert der aktuell laufenden Bewegung
+int moveDir = 0;                             // +1 = hoch, -1 = runter, 0 = keine Bewegung
 bool moveActive = false;                     // Bewegung aktiv?
 unsigned long moveStart_ms = 0;              // Startzeit aktive Bewegung
 int tempToSetpoint(float temp) {
@@ -63,26 +65,42 @@ void motorControlTask(unsigned long now) {
   // Aktuelle Poti-Position in % bestimmen
   // ADC lesen
   int curPct = rawToPercent(potiRawNow);  // in %
-  // Ziel anfahren, wenn außerhalb Totband
-  if (abs(curPct - targetPct) > DEAD_BAND_PCT) {  // Deutlich daneben?
-    if (!moveActive) {
-      moveActive = true;
-      moveStart_ms = now;
-    }                                     // Bewegung neu starten
-    motorDriveToward(curPct, targetPct);  // Richtung + PWM setzen
-    // Timeout prüfen
-    if (now - moveStart_ms > MOVE_TIMEOUT) {  // >10 s ohne Zielerreichung?
-      motorStop();                            // Motor aus
-      ledSet(3, C(255, 0, 0));                // LED3 rot (Fehler)
-      moveActive = false;                     // Bewegung abbrechen
+
+  if (!moveActive) {
+    // Totband entscheidet nur, ob eine neue Bewegung gestartet wird.
+    if (abs(curPct - targetPct) <= DEAD_BAND_PCT) {
+      return;
     }
-  } else {
-    // Ziel erreicht -> stoppen, LED3 im Normalbetrieb aus lassen
-    if (moveActive) {
-      motorStop();
-      moveActive = false;
-    }  // Bewegung beenden
-    // LED3 nur im Failsafe grün lassen; sonst aus
-    // (Kein explizites Ändern nötig, da in Kaskade gesetzt)
+
+    activeTargetPct = targetPct;
+    if (activeTargetPct > curPct) {
+      moveDir = 1;
+    } else if (activeTargetPct < curPct) {
+      moveDir = -1;
+    } else {
+      moveDir = 0;
+    }
+
+    moveActive = true;
+    moveStart_ms = now;
+  }
+
+  bool targetReached = (moveDir > 0 && curPct >= activeTargetPct) ||
+                       (moveDir < 0 && curPct <= activeTargetPct);
+
+  if (moveDir == 0 || targetReached) {
+    motorStop();
+    moveActive = false;
+    moveDir = 0;
+    return;
+  }
+
+  motorDriveToward(curPct, activeTargetPct);  // Richtung + PWM setzen
+  // Timeout prüfen
+  if (now - moveStart_ms > MOVE_TIMEOUT) {  // >10 s ohne Zielerreichung?
+    motorStop();                            // Motor aus
+    ledSet(3, C(255, 0, 0));                // LED3 rot (Fehler)
+    moveActive = false;                     // Bewegung abbrechen
+    moveDir = 0;
   }
 }
