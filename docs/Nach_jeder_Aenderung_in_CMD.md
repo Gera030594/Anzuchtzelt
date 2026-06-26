@@ -6,7 +6,7 @@ Alter Inhalt:
 
 ```text
 - Auswaehlen
-cd C:\Users\hraki\OneDrive\Anzucht\Hauptprogramme
+cd C:\Users\hraki\OneDrive\Anzucht\Hauptprogramme\Hauptprogramm_V17
 
 - Nach jeder Aenderung
 git status
