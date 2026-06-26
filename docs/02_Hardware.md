@@ -72,26 +72,44 @@ Zu pruefen:
 
 ## Pinbelegung
 
-Die konkrete Pinbelegung wird hier nicht dupliziert.
+Die Pinbelegung ist aus `lib/Config/Pins.h` belegt. Keine neuen Pinwerte erfinden.
+
+| Funktion | Pin |
+| --- | --- |
+| I2C SDA | 21 |
+| I2C SCL | 22 |
+| WS2812 Datenpin | 16 |
+| Motor L298N IN1 | 26 |
+| Motor L298N IN2 | 27 |
+| Motor L298N ENA/PWM | 25 |
+| Poti ADC | 34 |
+| Heartbeat Eingang | 32 |
+| Heartbeat Ausgang | 33 |
+| C3-Reset-Relais | 23 |
+| Lampen-Relais | 19 |
+| Modus-Schalter | 18 |
 
 Belegt durch vorhandene Projektstruktur:
 
 - Pin-/Konfigurationsbereich ist als `lib/Config/Pins.h` vorhanden.
-- Pinout-Unterlagen liegen in `docs/pinout/`.
 
 Zu pruefen:
 
 - Vor jeder Hardwareaenderung `lib/Config/Pins.h` und die reale Verkabelung abgleichen.
 - Pins nicht aendern, ausser es wird ausdruecklich verlangt.
+- `docs/pinout/` ist im aktuell gelesenen Repo nicht vorhanden.
 
 ## Weitere Hardware-Unterlagen
 
-- Datenblaetter und Manuals liegen in `docs/datasheets/`.
-- Weitere Hardware-/Komponentenunterlagen liegen in `docs/hardware/`.
-- Visio-/Schaltplanmaterial liegt in `docs/visio/`.
-- Alte oder unsichere Unterlagen liegen in `docs/archiv/` oder sind in `docs/99_Alt_und_Unsicher.md` markiert.
+Aktueller Repo-Stand:
+
+- `docs/datasheets/` ist im aktuell gelesenen Repo nicht vorhanden.
+- `docs/hardware/` ist im aktuell gelesenen Repo nicht vorhanden.
+- `docs/visio/` ist im aktuell gelesenen Repo nicht vorhanden.
+- `docs/archiv/` ist im aktuell gelesenen Repo nicht vorhanden.
+- Alte oder unsichere Hinweise sind in `docs/99_Alt_und_Unsicher.md` markiert.
 
 Zu pruefen:
 
-- Ob die Unterlagen in `docs/hardware/` direkt zum aktuellen Aufbau gehoeren.
-- Ob die Dateien in `docs/datasheets/` exakt den verbauten Komponenten entsprechen.
+- Ob externe Hardware-Unterlagen ausserhalb dieses Repos existieren.
+- Ob solche Unterlagen direkt zum aktuellen Aufbau gehoeren.

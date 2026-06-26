@@ -32,7 +32,7 @@ Bewertung:
 
 ## Alte Workflow-Hinweise
 
-Aus `docs/archiv/Normaler_Arbeitsablauf.md` uebernommen:
+Aus der archivierten Datei `docs/Normaler_Arbeitsablauf.md` uebernommen:
 
 ```text
 Dateien aendern
@@ -49,7 +49,7 @@ Bewertung:
 - `pio run` fehlte und ist nach Codeaenderungen zu pruefen beziehungsweise auszufuehren.
 - `git add .` ist zu pruefen; bevorzugt werden konkrete Dateien.
 
-Aus `docs/archiv/Nach_jeder_Aenderung_in_CMD.md` uebernommen:
+Aus der archivierten Datei `docs/Nach_jeder_Aenderung_in_CMD.md` uebernommen:
 
 ```text
 cd C:\Users\hraki\OneDrive\Anzucht\Hauptprogramme
@@ -68,7 +68,7 @@ Bewertung:
 
 ## Alte Werkzeuguebersicht
 
-Aus `docs/archiv/Grundaufbau_Entwicklungsumgebung.txt` uebernommen:
+Aus der archivierten Datei `docs/Grundaufbau_Entwicklungsumgebung.txt` uebernommen:
 
 ```text
 VS Code
@@ -87,21 +87,21 @@ Bewertung:
 
 ## Datei-/Namenshinweis
 
-Beobachtung aus der Dateiliste:
+Beobachtung aus der aktuellen Dateiliste:
 
 - Das Dateisystem zeigt `CODING_RULES.md`.
-- `git ls-files` meldete `CODING_Rules.md`.
+- `git ls-files` meldet aktuell ebenfalls `CODING_RULES.md`.
 
 Bewertung:
 
-- Zu pruefen, falls das Repository auf einem case-sensitiven Dateisystem verwendet wird.
+- Kein aktueller Case-Mismatch in diesem Repo belegt.
 
 ## Unklare Dateien nach docs-Organisation
 
 Diese Dateien wurden nicht geloescht und nicht inhaltlich veraendert, bleiben aber fachlich zu pruefen:
 
-- `docs/hardware/Parameter.xlsx`: zu pruefen, da die Sheets `Parameter` und `Fault Code` nicht eindeutig einer aktuellen Funktion zugeordnet wurden.
-- `docs/hardware/OPV_Trocknungszelt.jpeg`: zu pruefen, da der konkrete Bezug zum aktuellen Aufbau nicht aus dem Dateinamen allein belegbar ist.
-- `docs/datasheets/Suswe-750_manual.pdf`: zu pruefen, da die konkrete verbaute Komponente nicht aus dem Dateinamen allein belegbar ist.
-- `docs/archiv/ESP32_Programme/Z_Alt/Hauptprogramm_V16/wifi_secrets.h`: zu pruefen, da eine Datei mit Secret-Namen im Archiv liegt. Inhalt wurde nicht geprueft oder veraendert.
-- `docs/archiv/ESP32_Programme/`: zu pruefen, da es sich um alte Programmstaende und Nebenprogramme handelt, nicht um die aktuelle Hauptdokumentation.
+- `docs/hardware/Parameter.xlsx`: nicht im aktuell gelesenen Repo vorhanden; zu pruefen, falls diese Datei extern existiert.
+- `docs/hardware/OPV_Trocknungszelt.jpeg`: nicht im aktuell gelesenen Repo vorhanden; zu pruefen, falls diese Datei extern existiert.
+- `docs/datasheets/Suswe-750_manual.pdf`: nicht im aktuell gelesenen Repo vorhanden; zu pruefen, falls diese Datei extern existiert.
+- `docs/archiv/ESP32_Programme/Z_Alt/Hauptprogramm_V16/wifi_secrets.h`: nicht im aktuell gelesenen Repo vorhanden; Secret-Archivhinweis bleibt zu pruefen, falls dieser externe Archivstand existiert.
+- `docs/archiv/ESP32_Programme/`: nicht im aktuell gelesenen Repo vorhanden; zu pruefen, falls dieser externe Archivstand existiert.

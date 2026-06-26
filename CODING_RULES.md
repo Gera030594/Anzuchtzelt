@@ -58,8 +58,8 @@ Hauptprogramme/
 ├─ src/
 │  └─ main.cpp
 ├─ include/
-│  ├─ secrets.h
-│  └─ secrets_example.h
+│  ├─ wifi_secrets.h
+│  └─ wifi_secrets.example.h
 ├─ lib/
 ├─ test/
 ├─ CODING_RULES.md
@@ -111,9 +111,11 @@ Der Code arbeitet nach folgendem Muster:
 setup()
 ├─ Initialisierung
 ├─ Hardware vorbereiten
-├─ NVS öffnen
-├─ Sensoren prüfen
-├─ WLAN/NTP/Lampensteuerung starten
+├─ Poti, LEDs, Motor und Heartbeat initialisieren
+├─ BME680 initialisieren und initial prüfen
+├─ NVS öffnen und Kalibrierung laden
+├─ Lampensteuerung starten
+├─ WLAN starten
 └─ Startzustand herstellen
 
 loop()
@@ -122,11 +124,12 @@ loop()
 ├─ BME680-Task
 ├─ Heartbeat-Task
 ├─ Motor-Task
-├─ LED-Update-Task
-├─ Serial-Command-Task
 ├─ WLAN-Handler
 ├─ NTP-Handler
-└─ Lampen-Handler
+├─ Lampen-Handler
+├─ Status-LEDs aktualisieren
+├─ LED-Update-Task
+└─ Serial-Command-Task
 ```
 
 `loop()` bleibt schlank.
@@ -140,11 +143,13 @@ readPotiTask(now);
 bme680Task(now);
 heartbeatTask(now);
 motorControlTask(now);
-ledUpdateTask();
-serialCommandTask(now);
 handleWiFi(now);
 handleNTP(now);
 handleLamp(now);
+updateStatusLed();
+updateModeLed();
+ledUpdateTask();
+serialCommandTask(now);
 ```
 
 Nicht erlaubt in `loop()`:
@@ -268,17 +273,20 @@ Erlaubt:
 ```cpp
 Serial.begin(115200);
 initGeneral();
-openNVS();
-calInitLoad();
 initPoti();
 initLEDs();
 initMotorControl();
 initHeartbeat();
 bmeInit();
 bmeInitialCheck();
+openNVS();
+calInitLoad();
 initHardwareLampensteuerung();
+updateModeLed();
 connectWiFi();
-synchronizeTime();
+checkLampState();
+updateZoneLEDs(T);
+updateStatusLed();
 ```
 
 Nicht erlaubt:
@@ -516,16 +524,16 @@ if (temperature > TEMP_UPPER_WARN_C) {
 
 WLAN-Daten liegen nur in einer nicht getrackten Datei.
 
-Erlaubt:
+Aktueller Projektstand:
 
 ```cpp
-#include "secrets.h"
+#include "../../include/wifi_secrets.h"
 ```
 
-oder bei bestehendem Projektstand:
+Die lokale Secret-Datei ist:
 
-```cpp
-#include "wifi_secrets.h"
+```text
+include/wifi_secrets.h
 ```
 
 Nicht erlaubt:
@@ -549,7 +557,6 @@ Die Secret-Datei darf nicht committed werden.
 ```gitignore
 .pio/
 .vscode/
-include/secrets.h
 include/wifi_secrets.h
 *.bin
 *.elf
@@ -558,13 +565,7 @@ include/wifi_secrets.h
 Eine Beispiel-Datei darf committed werden:
 
 ```text
-include/secrets_example.h
-```
-
-oder:
-
-```text
-include/wifi_secrets_example.h
+include/wifi_secrets.example.h
 ```
 
 ---
@@ -625,6 +626,13 @@ LED5: untere Temperaturzone
 LED6: Heartbeat-Watchdog
 LED7: WLAN/NTP-Status
 LED8: Lampenmodus 12h/18h
+```
+
+LED3 hat im aktuellen Code zwei Quellen:
+
+```text
+Motorfehler werden zentral in LedStatus.cpp über getMotorFault() rot angezeigt.
+BME-Failsafe setzt LED3 weiterhin direkt grün oder rot.
 ```
 
 Farblogik muss eindeutig bleiben.
@@ -734,10 +742,54 @@ Motorstopp bei Fehler
 Bestehende Funktionen:
 
 ```cpp
+int getMotorTargetPct();
+void setMotorTargetPct(int pct);
+MotorFault getMotorFault();
+void clearMotorFault();
 motorDriveToward(int curPct, int tgtPct);
 motorStop();
 motorControlTask(unsigned long now);
 tempToSetpoint(float temp);
+```
+
+`targetPct` ist gekapselt und wird über `setMotorTargetPct()` auf 0..100 % begrenzt.
+
+Aktueller Motorfehlerstatus:
+
+```cpp
+enum MotorFault {
+  MOTOR_FAULT_NONE,
+  MOTOR_FAULT_POTI_INVALID,
+  MOTOR_FAULT_TIMEOUT
+};
+```
+
+`getMotorFault()` liefert den Status. `clearMotorFault()` löscht ihn bewusst.
+
+Aktuelle Bewegungslogik:
+
+```text
+Deadband entscheidet nur, ob eine neue Bewegung gestartet wird.
+Beim Start werden activeTargetPct und moveDir gespeichert.
+Während moveActive true ist, stoppt das Deadband die Bewegung nicht.
+Aufwärtsfahrt stoppt bei curPct >= activeTargetPct.
+Abwärtsfahrt stoppt bei curPct <= activeTargetPct.
+moveDir == 0 stoppt den Motor.
+```
+
+Aktuelle Sperren:
+
+```text
+potiValid == false -> motorStop(), Bewegung abbrechen, MOTOR_FAULT_POTI_INVALID
+MOTOR_FAULT_TIMEOUT -> motorStop(), Bewegung abbrechen, keine neue Bewegung bis clearMotorFault() oder Neustart
+```
+
+Temperatur-zu-Zielwert:
+
+```text
+<22 °C -> 10 %
+22..32 °C -> linear 10..100 %
+>=32 °C -> 100 %
 ```
 
 Direkte Motorsteuerung außerhalb dieser Funktionen ist zu vermeiden.
@@ -753,15 +805,15 @@ ledcWrite(PWM_CHANNEL, duty);
 Besser:
 
 ```cpp
-motorDriveToward(curPct, targetPct);
+motorDriveToward(curPct, activeTargetPct);
 motorStop();
 ```
 
 Failsafe-Regeln bleiben:
 
 ```text
-Poti ungültig → Motor aus
-Move-Timeout → Motor aus
+Poti ungültig → Motor aus, MOTOR_FAULT_POTI_INVALID
+Move-Timeout → Motor aus, MOTOR_FAULT_TIMEOUT, Timeout-Sperre bis clearMotorFault() oder Neustart
 BME-Fehler → definierter sicherer Zielwert
 ```
 
@@ -812,7 +864,7 @@ Die LUT-Kalibrierung bleibt erhalten.
 Bestehende Regeln:
 
 ```text
-3 bis 5 Kalibrierpunkte
+technisch mindestens 2 gültige Kalibrierpunkte
 Slots: 0 %, 25 %, 50 %, 75 %, 100 %
 Serial-Bedienung
 NVS-Speicherung
@@ -1154,8 +1206,8 @@ Reaktion muss immer definiert sein.
 Motor-Failsafe:
 
 ```text
-Poti ungültig → Motor aus
-Move-Timeout → Motor aus
+Poti ungültig → Motor aus, MOTOR_FAULT_POTI_INVALID
+Move-Timeout → Motor aus, MOTOR_FAULT_TIMEOUT, Timeout-Sperre bis clearMotorFault() oder Neustart
 BME-Fehler → sicherer Zielwert oder Motorstopp nach Logik
 ```
 
@@ -1294,6 +1346,14 @@ Preferences
 nvs_flash
 WiFi
 time
+```
+
+Offener Punkt / zu prüfen:
+
+```text
+ArduinoJson, OneWire und DHT sensor library werden im aktuell gelesenen platformio.ini nicht als lib_deps geführt.
+Falls sie in einem anderen Arbeitsstand auftauchen, vor dem Entfernen prüfen, ob sie im Code noch genutzt werden.
+Nicht automatisch entfernen.
 ```
 
 Regeln:

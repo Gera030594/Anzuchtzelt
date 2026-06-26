@@ -39,6 +39,13 @@ Aus `CODING_RULES.md` belegt:
 - Reinitialisierung erfolgt ueber normale I2C-/BME-Initialisierung.
 - Keine manuelle SDA/SCL-Bus-Recovery einfuehren.
 
+Aus aktuellem Code belegt:
+
+- Nach 3 Fehlversuchen wird `bmeOK=false` gesetzt.
+- Retry bei defektem BME erfolgt alle 3 s.
+- Die Reinit-Wartezeit ist nicht-blockierend und betraegt 15 ms.
+- Beim Init und Reinit wird 0x76/0x77 per Autodetect geprueft.
+
 Zu pruefen:
 
 - Sensorverkabelung.
@@ -52,6 +59,20 @@ Aus `CODING_RULES.md` belegt:
 - Ungueltiges Poti fuehrt zu Motor aus.
 - Move-Timeout fuehrt zu Motor aus.
 - BME-Fehler fuehrt zu definiertem sicherem Zielwert oder Motorstopp nach Logik.
+
+Aktuelle MotorFault-Zustaende:
+
+- `MOTOR_FAULT_POTI_INVALID`: Poti-Rueckmeldung ungueltig, Motor wird gestoppt.
+- `MOTOR_FAULT_TIMEOUT`: Bewegung hat `MOVE_TIMEOUT` ueberschritten, Motor wird gestoppt.
+- Nach `MOTOR_FAULT_TIMEOUT` ist die Motorsteuerung verriegelt und startet keine neue Bewegung.
+- Die Verriegelung bleibt bis Neustart oder internem `clearMotorFault()` bestehen.
+- LED3 wird bei aktivem MotorFault zentral in `LedStatus.cpp` rot gesetzt.
+
+Serial-Ausgabe bei Move-Timeout:
+
+```text
+[MOTOR] ERROR: MOVE_TIMEOUT cur=... target=... dir=... elapsed=...
+```
 
 Zu pruefen:
 
@@ -70,6 +91,13 @@ Aus `CODING_RULES.md` belegt:
 - Timeout fuehrt zu einem Relaispuls am Watchdog-Reset-Relais.
 - OK-Zustand darf nicht kuenstlich ohne echten RX erzeugt werden.
 
+Aus aktuellem Code belegt:
+
+- Heartbeat-TX erfolgt nur bei gesundem BME ueber `bmeHealthy(now)`.
+- Heartbeat-Timeout: 20 s ohne RX.
+- Relaispulsdauer: 1 s.
+- Nach einem Relaispuls wird der naechste Reset erst nach Ablauf der naechsten Timeout-Frist erlaubt.
+
 Zu pruefen:
 
 - Heartbeat-Verbindung.
@@ -83,6 +111,13 @@ Aus `CODING_RULES.md` belegt:
 - Kalibrierwerte werden in NVS gespeichert.
 - Bestehende Werte duerfen nicht ungefragt geloescht werden.
 - NVS-Diagnose ist ueber Serial-Befehl `D` vorgesehen.
+
+Aus aktuellem Code belegt:
+
+- `openNVS()` versucht den Namespace `cal` zu oeffnen.
+- Bei bestimmten NVS-Init-Fehlern kann `openNVS()` `nvs_flash_erase()` ausfuehren.
+- Das ist sicherheitsrelevant, weil dadurch NVS-Inhalte geloescht werden koennen.
+- Diese Recovery darf nicht unbedacht geaendert oder erweitert werden.
 
 Zu pruefen:
 

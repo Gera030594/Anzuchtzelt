@@ -1,6 +1,6 @@
 # Entwicklung
 
-Status: ersetzt die alten Workflow-Notizen. Die archivierten alten Hinweise liegen in `docs/archiv/` und sind in `docs/99_Alt_und_Unsicher.md` bewertet.
+Status: ersetzt die alten Workflow-Notizen. Die archivierten alten Hinweise liegen aktuell direkt unter `docs/` und sind in `docs/99_Alt_und_Unsicher.md` bewertet.
 
 ## Werkzeuge
 
@@ -16,7 +16,8 @@ Aus vorhandener Dokumentation belegt:
 
 Zu pruefen:
 
-- Welche VS-Code-Erweiterung lokal bevorzugt wird, da `.vscode/extensions.json` zwei PlatformIO-nahe Empfehlungen enthaelt.
+- `.vscode/extensions.json` ist vorhanden und enthaelt zwei PlatformIO-nahe Empfehlungen.
+- Zu pruefen bleibt nur, welche dieser Empfehlungen lokal bevorzugt wird.
 
 ## Normaler Ablauf
 
@@ -59,5 +60,6 @@ Zu pruefen:
 
 - README kurz halten.
 - Doppelte Inhalte vermeiden.
-- Alte oder unsichere Hinweise nach `docs/99_Alt_und_Unsicher.md` uebernehmen.
+- Alte oder unsichere Hinweise in `docs/99_Alt_und_Unsicher.md` bewerten.
+- Archivierte alte Notizen liegen aktuell direkt unter `docs/`, nicht in `docs/archiv/`.
 - Unsichere Aussagen mit `zu pruefen` markieren.
