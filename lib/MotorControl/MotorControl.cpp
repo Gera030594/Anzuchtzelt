@@ -32,7 +32,7 @@ void setMotorTargetPct(int pct) {
   targetPct = pct;
 }
 
-int tempToSetpoint(float temp) {
+/* int tempToSetpoint(float temp) {
   if (temp < 22.0f) return 10;      // <22°C -> 10%
   if (temp >= 32.0f) return 100;    // ab 32°C -> 100%
 
@@ -42,6 +42,21 @@ int tempToSetpoint(float temp) {
 
   if (pct < 10.0f) pct = 10.0f;
   if (pct > 100.0f) pct = 100.0f;
+
+  return (int)(pct + 0.5f);            // gerundet
+}
+*/
+
+int tempToSetpoint(float temp) {
+  if (temp < 22.0f) return 10;     // unter 22°C -> 10%
+  if (temp >= 32.0f) return 60;    // ab 32°C -> 60%
+
+  // 22..32°C -> linear 10..60%
+  float rel = (temp - 22.0f) / 10.0f;  // 0..1
+  float pct = 10.0f + rel * 50.0f;     // 10..60
+
+  if (pct < 10.0f) pct = 10.0f;
+  if (pct > 60.0f) pct = 60.0f;
 
   return (int)(pct + 0.5f);            // gerundet
 }
