@@ -5,8 +5,6 @@
 #include <math.h>
 
 #include "Config.h"
-#include "LampControl.h"
-#include "LedStatus.h"
 #include "MotorControl.h"
 #include "Pins.h"
 #include "PotiFeedback.h"
@@ -24,39 +22,23 @@ unsigned long lastBMEAttempt_ms = 0;      // letzter Reinit-Versuch
 int bmeBadStreak = 0;                     // aufeinanderfolgende Fehlmessungen
 bool bmeReinitPending = false;
 unsigned long bmeReinitStart_ms = 0;
+static bool bmeDisplayError = true;
+static bool bmeHumidityDisplayValid = false;
 
-static void setBmeErrorLeds(bool error) {
-  if (error) {
-    ledSet(4, C(255, 0, 0));
-    ledSet(5, C(255, 0, 0));
-  } else {
-    updateZoneLEDs(T);
-  }
+static void setBmeDisplayError(bool error) {
+  bmeDisplayError = error;
 }
 
-static void updateHumidityLEDs(float rh) {
-  ledSet(0, C(0, 0, 0));
-  ledSet(1, C(0, 0, 0));
+static void setHumidityDisplayValue(float rh) {
+  bmeHumidityDisplayValid = !(isnan(rh) || rh < 0.0 || rh > 100.0);
+}
 
-  if (isnan(rh) || rh < 0.0 || rh > 100.0) return;
+bool hasBmeDisplayError() {
+  return bmeDisplayError;
+}
 
-  GrowPhase phase = getGrowPhase();
-
-  if (phase == GrowPhase::Flowering) {
-    if (rh >= 60.0) ledSet(0, C(255, 0, 0));
-    else if (rh >= 55.0) ledSet(0, C(255, 255, 0));
-    else if (rh >= 50.0) ledSet(0, C(0, 255, 0));
-    else if (rh >= 45.0) ledSet(1, C(0, 255, 0));
-    else if (rh >= 40.0) ledSet(1, C(255, 255, 0));
-    else ledSet(1, C(255, 0, 0));
-  } else {
-    if (rh > 70.0) ledSet(0, C(255, 0, 0));
-    else if (rh >= 65.0) ledSet(0, C(255, 255, 0));
-    else if (rh >= 60.0) ledSet(0, C(0, 255, 0));
-    else if (rh >= 55.0) ledSet(1, C(0, 255, 0));
-    else if (rh >= 50.0) ledSet(1, C(255, 255, 0));
-    else ledSet(1, C(255, 0, 0));
-  }
+bool hasValidHumidityForDisplay() {
+  return bmeHumidityDisplayValid;
 }
 
 void bmeConfigure() {
@@ -131,8 +113,8 @@ void bmeInit() {
   }
 
   if (!bmeOK) {
-    setBmeErrorLeds(true);  // Sensorfehler signalisieren
-    updateHumidityLEDs(NAN);
+    setBmeDisplayError(true);  // Sensorfehler signalisieren
+    setHumidityDisplayValue(NAN);
     Serial.println(F("BME680 nicht gefunden (0x76/0x77)."));
   } else {
     Serial.print(F("BME680 gefunden @ 0x"));
@@ -150,8 +132,8 @@ void bmeInitialCheck() {
   // 1) BME prüfen
   if (!bmeOK || !bme.performReading()) {                                   // Wenn BME nicht ok / keine Lesung
     bmeOK = false;                                                         // Sensorfehler markieren
-    setBmeErrorLeds(true);                                                 // LED4/LED5 rot (BME Fehler)
-    updateHumidityLEDs(NAN);
+    setBmeDisplayError(true);                                              // BME-Fehler anzeigen
+    setHumidityDisplayValue(NAN);
     potiRawNow = readPotiRaw();                                            // Poti lesen
     potiValid = (potiRawNow > POTI_MIN_RAW && potiRawNow < POTI_MAX_RAW);  // Plausibel?
     if (potiValid) {                                                       // Poti ok -> auf 25% fahren (Failsafe)
@@ -165,8 +147,8 @@ void bmeInitialCheck() {
 
     bool tBad = (isnan(T) || T < 0.0 || T > 100.0);
     bool hBad = (isnan(RH) || RH < 0.0 || RH > 100.0);
-    setBmeErrorLeds(!bmeOK || tBad || hBad);
-    updateHumidityLEDs(hBad ? NAN : RH);
+    setBmeDisplayError(!bmeOK || tBad || hBad);
+    setHumidityDisplayValue(hBad ? NAN : RH);
 
     // Temperatur prüfen
     if (tBad) {                    // Temperatur ungültig?
@@ -195,20 +177,20 @@ void bme680Task(unsigned long now) {
 
     bool tBad = (isnan(T) || T < 0.0 || T > 100.0);
     bool hBad = (isnan(RH) || RH < 0.0 || RH > 100.0);
-    updateHumidityLEDs(hBad ? NAN : RH);
+    setHumidityDisplayValue(hBad ? NAN : RH);
 
     if (!tBad && !hBad) {
       bmeOK = true;
       bmeBadStreak = 0;
       lastBMEGood_ms = now;
-      setBmeErrorLeds(false);
+      setBmeDisplayError(false);
       int newTarget = tempToSetpoint(T);
       if (newTarget != getMotorTargetPct()) setMotorTargetPct(newTarget);
     } else {
       // Fehler/Failsafe
       bmeBadStreak++;
       if (bmeBadStreak >= BME_BAD_LIMIT) bmeOK = false;
-      setBmeErrorLeds(true);
+      setBmeDisplayError(true);
       if (tBad) {
         if (potiValid) {
           setMotorTargetPct(25);
@@ -225,8 +207,8 @@ void bme680Task(unsigned long now) {
     bmeBadStreak++;
     if (bmeBadStreak >= BME_BAD_LIMIT) bmeOK = false;
 
-    setBmeErrorLeds(true);  // Haupt-Sensorfehler
-    updateHumidityLEDs(NAN);
+    setBmeDisplayError(true);  // Haupt-Sensorfehler
+    setHumidityDisplayValue(NAN);
 
     // Failsafe-Logik bleibt gleich:
     if (potiValid) {
@@ -237,7 +219,7 @@ void bme680Task(unsigned long now) {
   }
   // 🔹 Konsistente Fehlerbehandlung (egal welcher Fehlerpfad)
   if (!bmeOK) {
-    setBmeErrorLeds(true);
+    setBmeDisplayError(true);
     bmeService(now);
   }
 }

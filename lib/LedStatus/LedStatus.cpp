@@ -2,6 +2,7 @@
 
 #include <math.h>
 
+#include "BmeSensor.h"
 #include "Config.h"
 #include "HeartbeatWatchdog.h"
 #include "LampControl.h"
@@ -27,6 +28,31 @@ void ledSet(uint8_t i, const RgbColor& color) {
       leds.SetPixelColor(i, scaled);
       ledsDirty = true;
     }
+  }
+}
+
+static void updateHumidityLeds(float rh) {
+  ledSet(0, C(0, 0, 0));
+  ledSet(1, C(0, 0, 0));
+
+  if (isnan(rh) || rh < 0.0 || rh > 100.0) return;
+
+  GrowPhase phase = getGrowPhase();
+
+  if (phase == GrowPhase::Flowering) {
+    if (rh >= 60.0) ledSet(0, C(255, 0, 0));
+    else if (rh >= 55.0) ledSet(0, C(255, 255, 0));
+    else if (rh >= 50.0) ledSet(0, C(0, 255, 0));
+    else if (rh >= 45.0) ledSet(1, C(0, 255, 0));
+    else if (rh >= 40.0) ledSet(1, C(255, 255, 0));
+    else ledSet(1, C(255, 0, 0));
+  } else {
+    if (rh > 70.0) ledSet(0, C(255, 0, 0));
+    else if (rh >= 65.0) ledSet(0, C(255, 255, 0));
+    else if (rh >= 60.0) ledSet(0, C(0, 255, 0));
+    else if (rh >= 55.0) ledSet(1, C(0, 255, 0));
+    else if (rh >= 50.0) ledSet(1, C(255, 255, 0));
+    else ledSet(1, C(255, 0, 0));
   }
 }
 
@@ -59,6 +85,17 @@ void updateZoneLEDs(float temp) {
   } else {
     ledSet(4, C(255, 0, 0));
   }
+}
+
+static void updateBmeLeds() {
+  if (hasBmeDisplayError()) {
+    ledSet(4, C(255, 0, 0));
+    ledSet(5, C(255, 0, 0));
+  } else {
+    updateZoneLEDs(T);
+  }
+
+  updateHumidityLeds(hasValidHumidityForDisplay() ? RH : NAN);
 }
 
 void updateModeLed() {
@@ -128,6 +165,7 @@ void ledUpdateTask() {
   static unsigned long nextShowMs = 0;
   unsigned long now = millis();
 
+  updateBmeLeds();
   updateHeartbeatLed(now);
 
   if (ledsDirty && leds.CanShow() && now >= nextShowMs) {

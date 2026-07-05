@@ -14,3 +14,5 @@ void bmeTryInitNow();
 void bmeService(unsigned long now);
 void bme680Task(unsigned long now);
 bool bmeHealthy(unsigned long now);
+bool hasBmeDisplayError();
+bool hasValidHumidityForDisplay();
