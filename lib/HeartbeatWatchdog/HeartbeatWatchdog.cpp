@@ -2,7 +2,6 @@
 
 #include "BmeSensor.h"
 #include "Config.h"
-#include "LedStatus.h"
 #include "Pins.h"
 
 /************ Heartbeat ************/
@@ -42,6 +41,21 @@ void initHeartbeat() {
   Serial.println(F("[HB] Heartbeat RX/TX initialisiert."));
 }
 
+HeartbeatStatus getHeartbeatStatus(unsigned long now) {
+  unsigned long sinceRef = hbSeen ? lastHB_RX_ms : boot_ms;
+  bool timedOut = (now - sinceRef > HB_TIMEOUT);
+  bool inGrace = (!hbSeen && (now - boot_ms <= HB_TIMEOUT));
+  bool hbOk = (hbSeen && !timedOut);
+
+  if (hbOk) {
+    return HeartbeatStatus::Ok;
+  }
+  if (inGrace) {
+    return HeartbeatStatus::Grace;
+  }
+  return HeartbeatStatus::Timeout;
+}
+
 void heartbeatTask(unsigned long now) {
   // 1) Heartbeat senden – nur, wenn Sensor ok
   if (bmeHealthy(now) && (now - lastHB_TX_ms >= HB_SEND_INTERVAL)) {
@@ -60,17 +74,6 @@ void heartbeatTask(unsigned long now) {
   unsigned long sinceRef = hbSeen ? lastHB_RX_ms : boot_ms;
   bool timedOut = (now - sinceRef > HB_TIMEOUT);
 
-  // LED-Logik mit Schonfrist
-  bool inGrace = (!hbSeen && (now - boot_ms <= HB_TIMEOUT));
-  bool hbOk = (hbSeen && !timedOut);
-
-  if (hbOk) {
-    ledSet(6, C(0, 255, 0));  // grün nach echtem RX
-  } else if (inGrace) {
-    ledSet(6, C(0, 0, 0));  // aus während der Schonfrist
-  } else {
-    ledSet(6, C(255, 0, 0));  // rot bei/ nach Timeout
-  }
   // ===== Edge-getriggerter FAILSAFE nur beim Eintreten des Timeouts =====
   if (timedOut && !hbTimeoutLatched) {
     hbTimeoutLatched = true;  // nur EINMAL pro Timeout

@@ -3,6 +3,7 @@
 #include <math.h>
 
 #include "Config.h"
+#include "HeartbeatWatchdog.h"
 #include "LampControl.h"
 #include "Pins.h"
 #include "WifiTime.h"
@@ -109,9 +110,25 @@ void initLEDs() {
   Serial.println(F("[LED] NeoPixelBus (RMT) initialisiert."));
 }
 
+static void updateHeartbeatLed(unsigned long now) {
+  switch (getHeartbeatStatus(now)) {
+    case HeartbeatStatus::Ok:
+      ledSet(6, C(0, 255, 0));  // grün nach echtem RX
+      break;
+    case HeartbeatStatus::Grace:
+      ledSet(6, C(0, 0, 0));  // aus während der Schonfrist
+      break;
+    case HeartbeatStatus::Timeout:
+      ledSet(6, C(255, 0, 0));  // rot bei/ nach Timeout
+      break;
+  }
+}
+
 void ledUpdateTask() {
   static unsigned long nextShowMs = 0;
   unsigned long now = millis();
+
+  updateHeartbeatLed(now);
 
   if (ledsDirty && leds.CanShow() && now >= nextShowMs) {
     leds.Show();
