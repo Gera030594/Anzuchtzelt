@@ -3,6 +3,7 @@
 #include <math.h>
 
 #include "Config.h"
+#include "LampControl.h"
 #include "Pins.h"
 
 /************ LEDs / Farben (NeoPixelBus/RMT) ************/
@@ -55,6 +56,22 @@ void updateZoneLEDs(float temp) {
     ledSet(4, C(255, 255, 0));
   } else {
     ledSet(4, C(255, 0, 0));
+  }
+}
+
+void updateModeLed() {
+  static int lastMode = -1;                    // -1 unbekannt, 0=18h, 1=12h
+  int modeNow = getGrowPhase() == GrowPhase::Flowering ? 1 : 0;  // HIGH=12h, LOW=18h
+
+  if (modeNow == lastMode) return;
+  lastMode = modeNow;
+
+  if (modeNow == 1) {
+    // 12h = Grün
+    ledSet(LED_MODE, C(0, 255, 0));
+  } else {
+    // 18h = Orange
+    ledSet(LED_MODE, C(255, 80, 0));
   }
 }
 

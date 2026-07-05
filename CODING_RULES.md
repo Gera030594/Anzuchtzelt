@@ -1077,9 +1077,9 @@ Bestehende Funktionen:
 initHardwareLampensteuerung();
 handleLamp(unsigned long now);
 checkLampState();
-updateModeLed();
-updateStatusLed();
 ```
+
+Die LED8-Anzeige fuer den Lampenmodus wird zentral in `LedStatus` ueber `updateModeLed()` gesetzt.
 
 Regeln:
 

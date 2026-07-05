@@ -3,7 +3,6 @@
 #include <time.h>
 
 #include "Config.h"
-#include "LedStatus.h"
 #include "Pins.h"
 
 bool relayState = false;              // Aktueller Status des Relais speichern
@@ -68,21 +67,5 @@ void checkLampState() {
                   lampMode12h ? 12 : 18,
                   (relayState ? (RELAY_ACTIVE_LOW ? "LOW" : "HIGH") : (RELAY_ACTIVE_LOW ? "HIGH" : "LOW")),
                   timeinfo.tm_hour, timeinfo.tm_min);
-  }
-}
-
-void updateModeLed() {
-  static int lastMode = -1;                    // -1 unbekannt, 0=18h, 1=12h
-  int modeNow = getGrowPhase() == GrowPhase::Flowering ? 1 : 0;  // HIGH=12h, LOW=18h
-
-  if (modeNow == lastMode) return;
-  lastMode = modeNow;
-
-  if (modeNow == 1) {
-    // 12h = Grün
-    ledSet(LED_MODE, C(0, 255, 0));
-  } else {
-    // 18h = Orange
-    ledSet(LED_MODE, C(255, 80, 0));
   }
 }
