@@ -619,13 +619,35 @@ Die Status-LEDs sind Teil der Diagnose und dürfen nicht ohne Ersatzlogik entfer
 Bestehende Bedeutung:
 
 ```text
-LED0/LED1/LED2: BME680 Plausibilitätsstatus
+LED0: Luftfeuchte oberer Bereich / zu hoch
+LED1: Luftfeuchte unterer Bereich / zu niedrig
+LED2: derzeit nicht fuer BME680 genutzt
 LED3: Motor/Poti/Failsafe
-LED4: obere Temperaturzone
-LED5: untere Temperaturzone
+LED4: obere Temperaturzone, bei BME680-Fehler vorrangig rot
+LED5: untere Temperaturzone, bei BME680-Fehler vorrangig rot
 LED6: Heartbeat-Watchdog
 LED7: WLAN/NTP-Status
 LED8: Lampenmodus 12h/18h
+```
+
+Bei einem BME680-Fehler leuchten LED4 und LED5 gleichzeitig rot.
+Dieser Fehlerstatus hat Vorrang vor der normalen Temperaturzonenanzeige.
+LED0 und LED1 zeigen die Luftfeuchte-Zone phasenabhängig an und werden nicht fuer BME-Fehler genutzt.
+LED0 und LED1 sind gegenseitig verriegelt: maximal eine der beiden LEDs darf leuchten.
+Bei ungueltiger Luftfeuchte bleiben LED0 und LED1 aus.
+Die Grow-Phase kommt aus der bestehenden 12h/18h-Umschaltung:
+18h Licht / 6h Dunkel = Vegetation, 12h Licht / 12h Dunkel = Bluete.
+
+Luftfeuchte-Zonen:
+
+```text
+Vegetation:
+LED0 rot >70 %, gelb 65..70 %, gruen 60..<65 %
+LED1 gruen 55..<60 %, gelb 50..<55 %, rot <50 %
+
+Bluete:
+LED0 rot >=60 %, gelb 55..<60 %, gruen 50..<55 %
+LED1 gruen 45..<50 %, gelb 40..<45 %, rot <40 %
 ```
 
 LED3 hat im aktuellen Code zwei Quellen:
@@ -814,7 +836,8 @@ Failsafe-Regeln bleiben:
 ```text
 Poti ungültig → Motor aus, MOTOR_FAULT_POTI_INVALID
 Move-Timeout → Motor aus, MOTOR_FAULT_TIMEOUT, Timeout-Sperre bis clearMotorFault() oder Neustart
-BME-Fehler → definierter sicherer Zielwert
+BME-Temperaturfehler oder kompletter BME-Lesefehler → definierter sicherer Zielwert
+reine Feuchte-Unplausibilitaet bei gueltiger Temperatur → kein Motor-Failsafe
 ```
 
 ---
@@ -1068,6 +1091,7 @@ Regeln:
 Lampenstatus zyklisch prüfen
 kein permanentes Abfragen ohne Intervall
 12h/18h-Modus über Schalter
+12h/18h-Modus ist auch Grow-Phase: 18h/6h = Vegetation, 12h/12h = Bluete
 Relaiszustand nur ändern, wenn neuer Zustand abweicht
 WLAN/NTP-Status getrennt von Lampenlogik behandeln
 ```
@@ -1208,7 +1232,8 @@ Motor-Failsafe:
 ```text
 Poti ungültig → Motor aus, MOTOR_FAULT_POTI_INVALID
 Move-Timeout → Motor aus, MOTOR_FAULT_TIMEOUT, Timeout-Sperre bis clearMotorFault() oder Neustart
-BME-Fehler → sicherer Zielwert oder Motorstopp nach Logik
+BME-Temperaturfehler oder kompletter BME-Lesefehler → sicherer Zielwert oder Motorstopp nach Logik
+reine Feuchte-Unplausibilitaet bei gueltiger Temperatur → kein Motor-Failsafe
 ```
 
 Heartbeat-Failsafe:

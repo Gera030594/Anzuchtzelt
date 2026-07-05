@@ -34,7 +34,6 @@ void setup() {
   updateModeLed();
   connectWiFi();      // WLAN-Verbindung aufbauen
   checkLampState();   // Initialer Zustand (z. B. Relais aus)
-  updateZoneLEDs(T);  // LED4/LED5 nach Temperaturbereich setzen
   updateStatusLed();
   Serial.println(F("[SYS] Setup abgeschlossen."));
 }

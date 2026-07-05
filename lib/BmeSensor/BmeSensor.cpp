@@ -5,6 +5,7 @@
 #include <math.h>
 
 #include "Config.h"
+#include "LampControl.h"
 #include "LedStatus.h"
 #include "MotorControl.h"
 #include "Pins.h"
@@ -23,6 +24,41 @@ unsigned long lastBMEAttempt_ms = 0;      // letzter Reinit-Versuch
 int bmeBadStreak = 0;                     // aufeinanderfolgende Fehlmessungen
 bool bmeReinitPending = false;
 unsigned long bmeReinitStart_ms = 0;
+
+static void setBmeErrorLeds(bool error) {
+  if (error) {
+    ledSet(4, C(255, 0, 0));
+    ledSet(5, C(255, 0, 0));
+  } else {
+    updateZoneLEDs(T);
+  }
+}
+
+static void updateHumidityLEDs(float rh) {
+  ledSet(0, C(0, 0, 0));
+  ledSet(1, C(0, 0, 0));
+
+  if (isnan(rh) || rh < 0.0 || rh > 100.0) return;
+
+  GrowPhase phase = getGrowPhase();
+
+  if (phase == GrowPhase::Flowering) {
+    if (rh >= 60.0) ledSet(0, C(255, 0, 0));
+    else if (rh >= 55.0) ledSet(0, C(255, 255, 0));
+    else if (rh >= 50.0) ledSet(0, C(0, 255, 0));
+    else if (rh >= 45.0) ledSet(1, C(0, 255, 0));
+    else if (rh >= 40.0) ledSet(1, C(255, 255, 0));
+    else ledSet(1, C(255, 0, 0));
+  } else {
+    if (rh > 70.0) ledSet(0, C(255, 0, 0));
+    else if (rh >= 65.0) ledSet(0, C(255, 255, 0));
+    else if (rh >= 60.0) ledSet(0, C(0, 255, 0));
+    else if (rh >= 55.0) ledSet(1, C(0, 255, 0));
+    else if (rh >= 50.0) ledSet(1, C(255, 255, 0));
+    else ledSet(1, C(255, 0, 0));
+  }
+}
+
 void bmeConfigure() {
   bme.setTemperatureOversampling(BME680_OS_1X);
   bme.setHumidityOversampling(BME680_OS_1X);
@@ -95,7 +131,8 @@ void bmeInit() {
   }
 
   if (!bmeOK) {
-    ledSet(0, C(255, 0, 0));  // Sensorfehler signalisieren
+    setBmeErrorLeds(true);  // Sensorfehler signalisieren
+    updateHumidityLEDs(NAN);
     Serial.println(F("BME680 nicht gefunden (0x76/0x77)."));
   } else {
     Serial.print(F("BME680 gefunden @ 0x"));
@@ -113,7 +150,8 @@ void bmeInitialCheck() {
   // 1) BME prüfen
   if (!bmeOK || !bme.performReading()) {                                   // Wenn BME nicht ok / keine Lesung
     bmeOK = false;                                                         // Sensorfehler markieren
-    ledSet(0, C(255, 0, 0));                                               // LED0 rot (BME Fehler)
+    setBmeErrorLeds(true);                                                 // LED4/LED5 rot (BME Fehler)
+    updateHumidityLEDs(NAN);
     potiRawNow = readPotiRaw();                                            // Poti lesen
     potiValid = (potiRawNow > POTI_MIN_RAW && potiRawNow < POTI_MAX_RAW);  // Plausibel?
     if (!potiValid) {                                                      // Poti auch fehlerhaft?
@@ -124,15 +162,18 @@ void bmeInitialCheck() {
       moveActive = true;
       moveStart_ms = millis();  // Bewegung starten
     }
-  } else {  // BME ok -> LED0 grün und Messung übernehmen
+  } else {  // BME ok -> Messung übernehmen
     T = bme.temperature;
-    RH = bme.humidity;        // Temperatur / Feuchte speichern
-    ledSet(0, C(0, 255, 0));  // LED0 grün
+    RH = bme.humidity;  // Temperatur / Feuchte speichern
+
+    bool tBad = (isnan(T) || T < 0.0 || T > 100.0);
+    bool hBad = (isnan(RH) || RH < 0.0 || RH > 100.0);
+    setBmeErrorLeds(!bmeOK || tBad || hBad);
+    updateHumidityLEDs(hBad ? NAN : RH);
+
     // Temperatur prüfen
-    if (isnan(T) || T < 0.0 || T > 100.0) {  // Temperatur ungültig?
-      ledSet(0, C(255, 0, 0));               // LED0 rot
-      ledSet(1, C(255, 0, 0));               // LED1 rot
-      potiRawNow = readPotiRaw();            // Poti prüfen
+    if (tBad) {                    // Temperatur ungültig?
+      potiRawNow = readPotiRaw();  // Poti prüfen
       potiValid = (potiRawNow > POTI_MIN_RAW && potiRawNow < POTI_MAX_RAW);
       if (!potiValid) ledSet(3, C(255, 0, 0));  // Poti fehlerhaft -> LED3 rot
       else {
@@ -141,17 +182,8 @@ void bmeInitialCheck() {
         moveActive = true;
         moveStart_ms = millis();
       }                         // Failsafe
-    } else {                    // Temperatur ok
-      ledSet(1, C(0, 255, 0));  // LED1 grün
     }
-    // Luftfeuchte prüfen
-    if (isnan(RH) || RH < 0.0 || RH > 100.0) {  // rF ungültig?
-      ledSet(0, C(255, 0, 0));                  // LED0 rot (laut Spez: Feuchtefehler setzt LED0 rot)
-      ledSet(2, C(255, 0, 0));                  // LED2 rot
-    } else {
-      ledSet(2, C(0, 255, 0));  // LED2 grün
-    }
-    if (!isnan(T) && T >= 0.0 && T <= 100.0 && !isnan(RH) && RH >= 0.0 && RH <= 100.0) {
+    if (!tBad && !hBad) {
       bmeBadStreak = 0;
       lastBMEGood_ms = millis();
     }
@@ -168,29 +200,31 @@ void bme680Task(unsigned long now) {
 
     bool tBad = (isnan(T) || T < 0.0 || T > 100.0);
     bool hBad = (isnan(RH) || RH < 0.0 || RH > 100.0);
-
-    // LED-Status
-    ledSet(0, (tBad || hBad) ? C(255, 0, 0) : C(0, 255, 0));
-    ledSet(1, tBad ? C(255, 0, 0) : C(0, 255, 0));
-    ledSet(2, hBad ? C(255, 0, 0) : C(0, 255, 0));
-    updateZoneLEDs(T);
+    updateHumidityLEDs(hBad ? NAN : RH);
 
     if (!tBad && !hBad) {
       bmeOK = true;
       bmeBadStreak = 0;
       lastBMEGood_ms = now;
+      setBmeErrorLeds(false);
       int newTarget = tempToSetpoint(T);
       if (newTarget != getMotorTargetPct()) setMotorTargetPct(newTarget);
     } else {
       // Fehler/Failsafe
       bmeBadStreak++;
       if (bmeBadStreak >= BME_BAD_LIMIT) bmeOK = false;
-      if (!potiValid) ledSet(3, C(255, 0, 0));
-      else {
-        setMotorTargetPct(25);
-        ledSet(3, C(0, 255, 0));
-        moveActive = true;
-        moveStart_ms = now;
+      setBmeErrorLeds(true);
+      if (tBad) {
+        if (!potiValid) ledSet(3, C(255, 0, 0));
+        else {
+          setMotorTargetPct(25);
+          ledSet(3, C(0, 255, 0));
+          moveActive = true;
+          moveStart_ms = now;
+        }
+      } else {
+        int newTarget = tempToSetpoint(T);
+        if (newTarget != getMotorTargetPct()) setMotorTargetPct(newTarget);
       }
     }
   } else {
@@ -198,8 +232,8 @@ void bme680Task(unsigned long now) {
     bmeBadStreak++;
     if (bmeBadStreak >= BME_BAD_LIMIT) bmeOK = false;
 
-    ledSet(0, C(255, 0, 0));  // Haupt-Sensorfehler
-    updateZoneLEDs(NAN);      // Zonen-LEDs deaktivieren (keine gültige T)
+    setBmeErrorLeds(true);  // Haupt-Sensorfehler
+    updateHumidityLEDs(NAN);
 
     // Failsafe-Logik bleibt gleich:
     if (!potiValid) {
@@ -213,8 +247,7 @@ void bme680Task(unsigned long now) {
   }
   // 🔹 Konsistente Fehlerbehandlung (egal welcher Fehlerpfad)
   if (!bmeOK) {
-    ledSet(0, C(255, 0, 0));
-    updateZoneLEDs(NAN);
+    setBmeErrorLeds(true);
     bmeService(now);
   }
 }
