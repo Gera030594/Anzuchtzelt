@@ -3,7 +3,6 @@
 #include <math.h>
 
 #include "Config.h"
-#include "MotorControl.h"
 #include "Pins.h"
 
 /************ LEDs / Farben (NeoPixelBus/RMT) ************/
@@ -70,10 +69,6 @@ void initLEDs() {
 void ledUpdateTask() {
   static unsigned long nextShowMs = 0;
   unsigned long now = millis();
-
-  if (getMotorFault() != MOTOR_FAULT_NONE) {
-    ledSet(3, C(255, 0, 0));
-  }
 
   if (ledsDirty && leds.CanShow() && now >= nextShowMs) {
     leds.Show();

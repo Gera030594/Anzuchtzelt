@@ -43,7 +43,7 @@ Aus `CODING_RULES.md` belegt:
 | LED | Bedeutung |
 | --- | --- |
 | LED0/LED1/LED2 | BME680 Plausibilitaetsstatus |
-| LED3 | Motor/Poti/Failsafe |
+| LED3 | frei / derzeit unbenutzt |
 | LED4 | obere Temperaturzone |
 | LED5 | untere Temperaturzone |
 | LED6 | Heartbeat-Watchdog |
@@ -52,8 +52,7 @@ Aus `CODING_RULES.md` belegt:
 
 Aktuelle Farblogik:
 
-- LED3 rot: MotorFault aktiv, z. B. ungueltiges Poti oder Move-Timeout.
-- LED3 gruen/rot kann weiterhin direkt vom BME-Failsafe gesetzt werden.
+- LED3 bleibt frei und wird nicht als Statusanzeige verwendet.
 - LED7 rot: WLAN nicht verbunden und NTP nicht synchronisiert.
 - LED7 blau: WLAN nicht verbunden, NTP-Zeit war bereits synchronisiert.
 - LED7 orange: WLAN verbunden, NTP noch nicht synchronisiert.

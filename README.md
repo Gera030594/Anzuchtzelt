@@ -16,7 +16,7 @@ Aktuelle Module:
 - `lib/Config`: Pins und zentrale Konstanten
 - `lib/HeartbeatWatchdog`: Heartbeat-Senden, RX-Überwachung und C3-Reset-Relaispuls
 - `lib/LampControl`: Lampenrelais und 12h/18h-Modus
-- `lib/LedStatus`: WS2812-Statusanzeige und zentrale MotorFault-Anzeige
+- `lib/LedStatus`: WS2812-Statusanzeige; LED3 bleibt frei
 - `lib/MotorControl`: Motorregelung, Deadband-Startlogik, MotorFault und Timeout-Sperre
 - `lib/PotiFeedback`: Poti-Lesen, Filterung und Plausibilitätsstatus
 - `lib/SerialCommands`: Statusausgaben und Kalibrierbefehle

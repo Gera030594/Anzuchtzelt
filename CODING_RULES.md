@@ -598,14 +598,14 @@ Direkte LED-Zugriffe außerhalb der LED-Hilfsfunktionen sind zu vermeiden.
 Nicht bevorzugt:
 
 ```cpp
-leds.SetPixelColor(3, RgbColor(...));
+leds.SetPixelColor(LED_STATUS, RgbColor(...));
 leds.Show();
 ```
 
 Besser:
 
 ```cpp
-ledSet(3, C(255, 0, 0));
+ledSet(LED_STATUS, C(255, 0, 0));
 ```
 
 `leds.Show()` bleibt auf `ledUpdateTask()` begrenzt.
@@ -622,7 +622,7 @@ Bestehende Bedeutung:
 LED0: Luftfeuchte oberer Bereich / zu hoch
 LED1: Luftfeuchte unterer Bereich / zu niedrig
 LED2: derzeit nicht fuer BME680 genutzt
-LED3: Motor/Poti/Failsafe
+LED3: frei / derzeit unbenutzt
 LED4: obere Temperaturzone, bei BME680-Fehler vorrangig rot
 LED5: untere Temperaturzone, bei BME680-Fehler vorrangig rot
 LED6: Heartbeat-Watchdog
@@ -650,12 +650,8 @@ LED0 rot >=60 %, gelb 55..<60 %, gruen 50..<55 %
 LED1 gruen 45..<50 %, gelb 40..<45 %, rot <40 %
 ```
 
-LED3 hat im aktuellen Code zwei Quellen:
-
-```text
-Motorfehler werden zentral in LedStatus.cpp über getMotorFault() rot angezeigt.
-BME-Failsafe setzt LED3 weiterhin direkt grün oder rot.
-```
+LED3 bleibt frei und wird von keinem Modul als Statusanzeige gesetzt.
+MotorFault, potiValid und BME-Zustaende bleiben Fachstatus ohne LED3-Ausgabe.
 
 Farblogik muss eindeutig bleiben.
 
@@ -1204,7 +1200,7 @@ Beispiele:
 ```cpp
 bmeOK = false;
 motorStop();
-ledSet(3, C(255, 0, 0));
+// Passende LED-Ausgabe zentral setzen; LED3 bleibt frei.
 Serial.println("[ERROR] Poti invalid, motor stopped");
 ```
 

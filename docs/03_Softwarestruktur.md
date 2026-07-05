@@ -109,7 +109,6 @@ Aus `src/main.cpp` belegt:
 
 Aus den Includes und Funktionsaufrufen im aktuellen Code belegt:
 
-- `LedStatus` haengt von `MotorControl` ab, weil `ledUpdateTask()` `getMotorFault()` abfragt.
 - `BmeSensor` setzt Motorziele ueber `setMotorTargetPct()` und nutzt Motorstatuswerte fuer Failsafe-Bewegungen.
 - `HeartbeatWatchdog` haengt von `BmeSensor` ab, weil Heartbeat-TX nur bei `bmeHealthy(now)` erfolgt.
 - `WifiTime` ruft `checkLampState()` aus `LampControl` auf, wenn NTP synchronisiert wurde.
@@ -120,7 +119,7 @@ Aus den Includes und Funktionsaufrufen im aktuellen Code belegt:
 - Poti-Plausibilitaet wird in `PotiFeedback` ueber `potiValid` bereitgestellt.
 - `MotorControl` stoppt bei `potiValid == false` und setzt `MOTOR_FAULT_POTI_INVALID`.
 - `MotorControl` setzt bei Move-Timeout `MOTOR_FAULT_TIMEOUT` und verriegelt neue Bewegungen bis Neustart oder internem `clearMotorFault()`.
-- `LedStatus` zeigt aktive MotorFault-Zustaende zentral auf LED3 rot an.
+- MotorFault-Zustaende bleiben Fachstatus und werden nicht auf LED3 angezeigt.
 - `BmeSensor` setzt bei Sensorfehlern einen sicheren Motorzielwert und versucht die nicht-blockierende Reinitialisierung.
 - `HeartbeatWatchdog` sendet nur bei gesundem BME und loest bei RX-Timeout einen C3-Reset-Relaispuls aus.
 - `Calibration` laedt Kalibrierwerte aus NVS und nutzt bei ungueltigen Daten einen Fallback.

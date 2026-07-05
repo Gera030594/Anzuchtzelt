@@ -66,7 +66,7 @@ Aktuelle MotorFault-Zustaende:
 - `MOTOR_FAULT_TIMEOUT`: Bewegung hat `MOVE_TIMEOUT` ueberschritten, Motor wird gestoppt.
 - Nach `MOTOR_FAULT_TIMEOUT` ist die Motorsteuerung verriegelt und startet keine neue Bewegung.
 - Die Verriegelung bleibt bis Neustart oder internem `clearMotorFault()` bestehen.
-- LED3 wird bei aktivem MotorFault zentral in `LedStatus.cpp` rot gesetzt.
+- LED3 bleibt frei und zeigt keine MotorFault-Zustaende an.
 
 Serial-Ausgabe bei Move-Timeout:
 
@@ -80,7 +80,7 @@ Zu pruefen:
 - Kalibrierung.
 - L298N-Versorgung und Verdrahtung.
 - Mechanische Blockade oder Endlage.
-- LED3 und Serial-Diagnose.
+- Serial-Diagnose und MotorFault-Status.
 
 ## Heartbeat-Timeout
 

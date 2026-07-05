@@ -154,11 +154,8 @@ void bmeInitialCheck() {
     updateHumidityLEDs(NAN);
     potiRawNow = readPotiRaw();                                            // Poti lesen
     potiValid = (potiRawNow > POTI_MIN_RAW && potiRawNow < POTI_MAX_RAW);  // Plausibel?
-    if (!potiValid) {                                                      // Poti auch fehlerhaft?
-      ledSet(3, C(255, 0, 0));                                             // LED3 rot (Poti Fehler)
-    } else {                                                               // Poti ok -> auf 25% fahren (Failsafe)
+    if (potiValid) {                                                       // Poti ok -> auf 25% fahren (Failsafe)
       setMotorTargetPct(25);                                               // Ziel 25%
-      ledSet(3, C(0, 255, 0));                                             // LED3 grün (Failsafe aktiv)
       moveActive = true;
       moveStart_ms = millis();  // Bewegung starten
     }
@@ -175,10 +172,8 @@ void bmeInitialCheck() {
     if (tBad) {                    // Temperatur ungültig?
       potiRawNow = readPotiRaw();  // Poti prüfen
       potiValid = (potiRawNow > POTI_MIN_RAW && potiRawNow < POTI_MAX_RAW);
-      if (!potiValid) ledSet(3, C(255, 0, 0));  // Poti fehlerhaft -> LED3 rot
-      else {
+      if (potiValid) {
         setMotorTargetPct(25);
-        ledSet(3, C(0, 255, 0));
         moveActive = true;
         moveStart_ms = millis();
       }                         // Failsafe
@@ -215,10 +210,8 @@ void bme680Task(unsigned long now) {
       if (bmeBadStreak >= BME_BAD_LIMIT) bmeOK = false;
       setBmeErrorLeds(true);
       if (tBad) {
-        if (!potiValid) ledSet(3, C(255, 0, 0));
-        else {
+        if (potiValid) {
           setMotorTargetPct(25);
-          ledSet(3, C(0, 255, 0));
           moveActive = true;
           moveStart_ms = now;
         }
@@ -236,11 +229,8 @@ void bme680Task(unsigned long now) {
     updateHumidityLEDs(NAN);
 
     // Failsafe-Logik bleibt gleich:
-    if (!potiValid) {
-      ledSet(3, C(255, 0, 0));
-    } else {
+    if (potiValid) {
       setMotorTargetPct(25);
-      ledSet(3, C(0, 255, 0));
       moveActive = true;
       moveStart_ms = now;
     }
