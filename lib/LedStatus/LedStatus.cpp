@@ -1,6 +1,8 @@
 #include "LedStatus.h"
 
+#include <Arduino.h>
 #include <math.h>
+#include <NeoPixelBus.h>
 
 #include "BmeSensor.h"
 #include "Config.h"
@@ -12,15 +14,15 @@
 /************ LEDs / Farben (NeoPixelBus/RMT) ************/
 NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod> leds(NUM_LEDS, WS2812_PIN);  // WS2812 = 800 kbit/s, Farbfolge GRB
 bool ledsDirty = false;
-RgbColor C(uint8_t r, uint8_t g, uint8_t b) {
+static RgbColor C(uint8_t r, uint8_t g, uint8_t b) {
   return RgbColor(r, g, b);
 }
 
-RgbColor withBri(const RgbColor& c) {
+static RgbColor withBri(const RgbColor& c) {
   return c.Dim(LED_BRIGHTNESS);  // skaliert RGB linear
 }
 
-void ledSet(uint8_t i, const RgbColor& color) {
+static void ledSet(uint8_t i, const RgbColor& color) {
   if (i < NUM_LEDS) {
     RgbColor scaled = withBri(color);      // Helligkeit anwenden
     RgbColor cur = leds.GetPixelColor(i);  // aktuell gesetzte (bereits skalierte) Farbe
@@ -56,7 +58,7 @@ static void updateHumidityLeds(float rh) {
   }
 }
 
-void updateZoneLEDs(float temp) {
+static void updateZoneLEDs(float temp) {
   if (isnan(temp)) {
     // Kein gültiger Sensorwert -> beide LEDs aus
     ledSet(4, C(0, 0, 0));
