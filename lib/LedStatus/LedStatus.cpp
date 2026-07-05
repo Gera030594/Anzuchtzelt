@@ -5,6 +5,7 @@
 #include "Config.h"
 #include "LampControl.h"
 #include "Pins.h"
+#include "WifiTime.h"
 
 /************ LEDs / Farben (NeoPixelBus/RMT) ************/
 NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0800KbpsMethod> leds(NUM_LEDS, WS2812_PIN);  // WS2812 = 800 kbit/s, Farbfolge GRB
@@ -72,6 +73,31 @@ void updateModeLed() {
   } else {
     // 18h = Orange
     ledSet(LED_MODE, C(255, 80, 0));
+  }
+}
+
+void updateStatusLed() {
+  bool wifiOk = isWifiConnected();
+  bool ntpOk = isTimeSynced();
+
+  static bool lastWifiOk = false;
+  static bool lastNtpOk = false;
+  static bool lastStatusKnown = false;
+
+  if (lastStatusKnown && wifiOk == lastWifiOk && ntpOk == lastNtpOk) return;
+
+  lastWifiOk = wifiOk;
+  lastNtpOk = ntpOk;
+  lastStatusKnown = true;
+
+  if (!wifiOk && !ntpOk) {
+    ledSet(LED_STATUS, C(255, 0, 0));  //  Rot
+  } else if (!wifiOk && ntpOk) {
+    ledSet(LED_STATUS, C(0, 0, 255));  //  Blau
+  } else if (wifiOk && !ntpOk) {
+    ledSet(LED_STATUS, C(255, 150, 0));  //  Gelb
+  } else {
+    ledSet(LED_STATUS, C(0, 255, 0));  //  Grün
   }
 }
 

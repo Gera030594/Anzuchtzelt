@@ -11,4 +11,5 @@ void connectWiFi();
 void checkWiFiReconnect();
 void synchronizeTime();
 bool isSommerzeit(struct tm* timeinfo);
-void updateStatusLed();
+bool isWifiConnected();
+bool isTimeSynced();

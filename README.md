@@ -20,7 +20,7 @@ Aktuelle Module:
 - `lib/MotorControl`: Motorregelung, Deadband-Startlogik, MotorFault und Timeout-Sperre
 - `lib/PotiFeedback`: Poti-Lesen, Filterung und Plausibilitätsstatus
 - `lib/SerialCommands`: Statusausgaben und Kalibrierbefehle
-- `lib/WifiTime`: WLAN, NTP, Sommerzeit und WLAN/NTP-Status-LED
+- `lib/WifiTime`: WLAN, NTP, Sommerzeit und Zeitstatus
 
 Die lokale WLAN-Secret-Datei ist `include/wifi_secrets.h`. Als Vorlage ist `include/wifi_secrets.example.h` im Repository.
 
