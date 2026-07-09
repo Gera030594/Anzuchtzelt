@@ -33,81 +33,178 @@ static void ledSet(uint8_t i, const RgbColor& color) {
   }
 }
 
-static void updateHumidityLeds(float rh) {
-  ledSet(0, C(0, 0, 0));
-  ledSet(1, C(0, 0, 0));
+enum class HumidityLedState : uint8_t {
+  Unknown,
+  Off,
+  HighRed,
+  HighYellow,
+  HighGreen,
+  LowGreen,
+  LowYellow,
+  LowRed
+};
 
-  if (isnan(rh) || rh < 0.0 || rh > 100.0) return;
+enum class TemperatureLedState : uint8_t {
+  Unknown,
+  Off,
+  BmeError,
+  ColdRed,
+  ColdYellow,
+  ColdGreen,
+  WarmGreen,
+  WarmYellow,
+  WarmRed
+};
 
-  GrowPhase phase = getGrowPhase();
+enum class WifiNtpLedState : uint8_t {
+  Unknown,
+  OfflineUnsynced,
+  OfflineSynced,
+  OnlineUnsynced,
+  OnlineSynced
+};
+
+static HumidityLedState getHumidityLedState(float rh, GrowPhase phase) {
+  if (isnan(rh) || rh < 0.0 || rh > 100.0) return HumidityLedState::Off;
 
   if (phase == GrowPhase::Flowering) {
-    if (rh >= 60.0) ledSet(0, C(255, 0, 0));
-    else if (rh >= 55.0) ledSet(0, C(255, 255, 0));
-    else if (rh >= 50.0) ledSet(0, C(0, 255, 0));
-    else if (rh >= 45.0) ledSet(1, C(0, 255, 0));
-    else if (rh >= 40.0) ledSet(1, C(255, 255, 0));
-    else ledSet(1, C(255, 0, 0));
-  } else {
-    if (rh > 70.0) ledSet(0, C(255, 0, 0));
-    else if (rh >= 65.0) ledSet(0, C(255, 255, 0));
-    else if (rh >= 60.0) ledSet(0, C(0, 255, 0));
-    else if (rh >= 55.0) ledSet(1, C(0, 255, 0));
-    else if (rh >= 50.0) ledSet(1, C(255, 255, 0));
-    else ledSet(1, C(255, 0, 0));
+    if (rh >= 60.0) return HumidityLedState::HighRed;
+    if (rh >= 55.0) return HumidityLedState::HighYellow;
+    if (rh >= 50.0) return HumidityLedState::HighGreen;
+    if (rh >= 45.0) return HumidityLedState::LowGreen;
+    if (rh >= 40.0) return HumidityLedState::LowYellow;
+    return HumidityLedState::LowRed;
   }
+
+  if (rh > 70.0) return HumidityLedState::HighRed;
+  if (rh >= 65.0) return HumidityLedState::HighYellow;
+  if (rh >= 60.0) return HumidityLedState::HighGreen;
+  if (rh >= 55.0) return HumidityLedState::LowGreen;
+  if (rh >= 50.0) return HumidityLedState::LowYellow;
+  return HumidityLedState::LowRed;
 }
 
-static void updateZoneLEDs(float temp) {
-  if (isnan(temp)) {
-    // Kein gültiger Sensorwert -> beide LEDs aus
-    ledSet(4, C(0, 0, 0));
-    ledSet(5, C(0, 0, 0));
-    return;  // direkt raus – spart unnötige Vergleiche
+static void applyHumidityLedState(HumidityLedState state) {
+  RgbColor led0 = C(0, 0, 0);
+  RgbColor led1 = C(0, 0, 0);
+
+  switch (state) {
+    case HumidityLedState::HighRed:
+      led0 = C(255, 0, 0);
+      break;
+    case HumidityLedState::HighYellow:
+      led0 = C(255, 255, 0);
+      break;
+    case HumidityLedState::HighGreen:
+      led0 = C(0, 255, 0);
+      break;
+    case HumidityLedState::LowGreen:
+      led1 = C(0, 255, 0);
+      break;
+    case HumidityLedState::LowYellow:
+      led1 = C(255, 255, 0);
+      break;
+    case HumidityLedState::LowRed:
+      led1 = C(255, 0, 0);
+      break;
+    case HumidityLedState::Unknown:
+    case HumidityLedState::Off:
+      break;
   }
 
-  // --- Kalt-Zone (LED5) ---
-  if (temp < 18.0f) {
-    ledSet(5, C(255, 0, 0));
-  } else if (temp < 20.0f) {
-    ledSet(5, C(255, 255, 0));
-  } else if (temp < 22.0f) {
-    ledSet(5, C(0, 255, 0));
-  } else {
-    ledSet(5, C(0, 0, 0));
+  ledSet(0, led0);
+  ledSet(1, led1);
+}
+
+static void updateHumidityLeds(float rh, GrowPhase phase) {
+  static HumidityLedState lastState = HumidityLedState::Unknown;
+  static GrowPhase lastPhase = GrowPhase::Vegetation;
+  static bool lastPhaseKnown = false;
+  HumidityLedState state = getHumidityLedState(rh, phase);
+
+  if (lastPhaseKnown && state == lastState && phase == lastPhase) return;
+  lastState = state;
+  lastPhase = phase;
+  lastPhaseKnown = true;
+
+  applyHumidityLedState(state);
+}
+
+static TemperatureLedState getTemperatureLedState(float temp, bool bmeDisplayError) {
+  if (bmeDisplayError) return TemperatureLedState::BmeError;
+  if (isnan(temp)) return TemperatureLedState::Off;
+
+  if (temp < 18.0f) return TemperatureLedState::ColdRed;
+  if (temp < 20.0f) return TemperatureLedState::ColdYellow;
+  if (temp < 22.0f) return TemperatureLedState::ColdGreen;
+  if (temp < 24.0f) return TemperatureLedState::WarmGreen;
+  if (temp < 28.0f) return TemperatureLedState::WarmYellow;
+  return TemperatureLedState::WarmRed;
+}
+
+static void applyTemperatureLedState(TemperatureLedState state) {
+  RgbColor led4 = C(0, 0, 0);
+  RgbColor led5 = C(0, 0, 0);
+
+  switch (state) {
+    case TemperatureLedState::BmeError:
+      led4 = C(255, 0, 0);
+      led5 = C(255, 0, 0);
+      break;
+    case TemperatureLedState::ColdRed:
+      led5 = C(255, 0, 0);
+      break;
+    case TemperatureLedState::ColdYellow:
+      led5 = C(255, 255, 0);
+      break;
+    case TemperatureLedState::ColdGreen:
+      led5 = C(0, 255, 0);
+      break;
+    case TemperatureLedState::WarmGreen:
+      led4 = C(0, 255, 0);
+      break;
+    case TemperatureLedState::WarmYellow:
+      led4 = C(255, 255, 0);
+      break;
+    case TemperatureLedState::WarmRed:
+      led4 = C(255, 0, 0);
+      break;
+    case TemperatureLedState::Unknown:
+    case TemperatureLedState::Off:
+      break;
   }
 
-  // --- Warm-Zone (LED4) ---
-  if (temp < 22.0f) {
-    ledSet(4, C(0, 0, 0));  // Untere Zone aktiv -> obere aus
-  } else if (temp < 24.0f) {
-    ledSet(4, C(0, 255, 0));
-  } else if (temp < 28.0f) {
-    ledSet(4, C(255, 255, 0));
-  } else {
-    ledSet(4, C(255, 0, 0));
-  }
+  ledSet(4, led4);
+  ledSet(5, led5);
+}
+
+static void updateTemperatureLeds(float temp, bool bmeDisplayError) {
+  static TemperatureLedState lastState = TemperatureLedState::Unknown;
+  TemperatureLedState state = getTemperatureLedState(temp, bmeDisplayError);
+
+  if (state == lastState) return;
+  lastState = state;
+
+  applyTemperatureLedState(state);
 }
 
 static void updateBmeLeds() {
-  if (hasBmeDisplayError()) {
-    ledSet(4, C(255, 0, 0));
-    ledSet(5, C(255, 0, 0));
-  } else {
-    updateZoneLEDs(T);
-  }
+  GrowPhase phase = getGrowPhase();
 
-  updateHumidityLeds(hasValidHumidityForDisplay() ? RH : NAN);
+  updateTemperatureLeds(T, hasBmeDisplayError());
+  updateHumidityLeds(hasValidHumidityForDisplay() ? RH : NAN, phase);
 }
 
 void updateModeLed() {
-  static int lastMode = -1;                    // -1 unbekannt, 0=18h, 1=12h
-  int modeNow = getGrowPhase() == GrowPhase::Flowering ? 1 : 0;  // HIGH=12h, LOW=18h
+  static GrowPhase lastPhase = GrowPhase::Vegetation;
+  static bool lastPhaseKnown = false;
+  GrowPhase phase = getGrowPhase();
 
-  if (modeNow == lastMode) return;
-  lastMode = modeNow;
+  if (lastPhaseKnown && phase == lastPhase) return;
+  lastPhase = phase;
+  lastPhaseKnown = true;
 
-  if (modeNow == 1) {
+  if (phase == GrowPhase::Flowering) {
     // 12h = Grün
     ledSet(LED_MODE, C(0, 255, 0));
   } else {
@@ -116,41 +213,62 @@ void updateModeLed() {
   }
 }
 
+static WifiNtpLedState getWifiNtpLedState(bool wifiOk, bool ntpOk) {
+  if (!wifiOk && !ntpOk) return WifiNtpLedState::OfflineUnsynced;
+  if (!wifiOk && ntpOk) return WifiNtpLedState::OfflineSynced;
+  if (wifiOk && !ntpOk) return WifiNtpLedState::OnlineUnsynced;
+  return WifiNtpLedState::OnlineSynced;
+}
+
 void updateStatusLed() {
   bool wifiOk = isWifiConnected();
   bool ntpOk = isTimeSynced();
 
-  static bool lastWifiOk = false;
-  static bool lastNtpOk = false;
-  static bool lastStatusKnown = false;
+  static WifiNtpLedState lastState = WifiNtpLedState::Unknown;
+  WifiNtpLedState state = getWifiNtpLedState(wifiOk, ntpOk);
 
-  if (lastStatusKnown && wifiOk == lastWifiOk && ntpOk == lastNtpOk) return;
+  if (state == lastState) return;
+  lastState = state;
 
-  lastWifiOk = wifiOk;
-  lastNtpOk = ntpOk;
-  lastStatusKnown = true;
-
-  if (!wifiOk && !ntpOk) {
-    ledSet(LED_STATUS, C(255, 0, 0));  //  Rot
-  } else if (!wifiOk && ntpOk) {
-    ledSet(LED_STATUS, C(0, 0, 255));  //  Blau
-  } else if (wifiOk && !ntpOk) {
-    ledSet(LED_STATUS, C(255, 150, 0));  //  Gelb
-  } else {
-    ledSet(LED_STATUS, C(0, 255, 0));  //  Grün
+  switch (state) {
+    case WifiNtpLedState::OfflineUnsynced:
+      ledSet(LED_STATUS, C(255, 0, 0));  //  Rot
+      break;
+    case WifiNtpLedState::OfflineSynced:
+      ledSet(LED_STATUS, C(0, 0, 255));  //  Blau
+      break;
+    case WifiNtpLedState::OnlineUnsynced:
+      ledSet(LED_STATUS, C(255, 150, 0));  //  Gelb
+      break;
+    case WifiNtpLedState::OnlineSynced:
+      ledSet(LED_STATUS, C(0, 255, 0));  //  Grün
+      break;
+    case WifiNtpLedState::Unknown:
+      break;
   }
 }
 
 void initLEDs() {
   leds.Begin();
   leds.ClearTo(RgbColor(0, 0, 0));  // Alle Pixel sicher auf Schwarz setzen und einmal senden
-  leds.Show();                      // alles aus
-  ledsDirty = false;
+  ledsDirty = true;
+  if (leds.CanShow()) {
+    leds.Show();  // alles aus
+    ledsDirty = false;
+  }
   Serial.println(F("[LED] NeoPixelBus (RMT) initialisiert."));
 }
 
 static void updateHeartbeatLed(unsigned long now) {
-  switch (getHeartbeatStatus(now)) {
+  static HeartbeatStatus lastStatus = HeartbeatStatus::Grace;
+  static bool lastStatusKnown = false;
+  HeartbeatStatus status = getHeartbeatStatus(now);
+
+  if (lastStatusKnown && status == lastStatus) return;
+  lastStatus = status;
+  lastStatusKnown = true;
+
+  switch (status) {
     case HeartbeatStatus::Ok:
       ledSet(6, C(0, 255, 0));  // grün nach echtem RX
       break;

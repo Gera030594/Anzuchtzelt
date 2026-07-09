@@ -21,6 +21,9 @@ const unsigned long wifiCheckInterval = 10000;  // WLAN alle 10 Sekunden überpr
 /************ LEDs / Farben (NeoPixelBus/RMT) ************/
 const uint8_t LED_BRIGHTNESS = 32;
 
+/************ Lampenmodus / GrowPhase ************/
+const unsigned long MODE_DEBOUNCE_MS = 200UL;  // Modus-Schalter non-blocking entprellen
+
 /************ BME680 ************/
 const unsigned long BME_INTERVAL = 10000UL;  // 10 s
 const unsigned long BME_RETRY_MS = 3000;     // alle 3 s Reinit versuchen, wenn defekt
