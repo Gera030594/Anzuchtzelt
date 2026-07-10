@@ -1,8 +1,0 @@
-{
-  "name": "SPI",
-  "version": "0.0.0",
-  "description": "PlatformIO shim for the framework-provided ESP32 Arduino SPI library.",
-  "keywords": "spi, shim",
-  "frameworks": "arduino",
-  "platforms": "espressif32"
-}

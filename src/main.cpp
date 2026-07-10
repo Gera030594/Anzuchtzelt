@@ -5,7 +5,6 @@
 #include "Calibration.h"
 #include "HeartbeatWatchdog.h"
 #include "LampControl.h"
-#include "LedStatus.h"
 #include "MotorControl.h"
 #include "MqttStatus.h"
 #include "Pins.h"
@@ -24,7 +23,6 @@ void setup() {
   initGeneral();
   initRelay();
   initPoti();
-  initLEDs();
   initMotorControl();
   initHeartbeat();
   bmeInit();
@@ -32,11 +30,9 @@ void setup() {
   openNVS();
   calInitLoad();                  // liest n/raw/pct aus NVS (calInitLoad() darf KEIN prefs.begin() mehr aufrufen!)
   initHardwareLampensteuerung();  // Initialisiere Pins, serielle Schnittstelle, Status
-  updateModeLed();
   connectWiFi();      // WLAN-Verbindung aufbauen
   initMqttStatus();
   checkLampState();   // Initialer Zustand (z. B. Relais aus)
-  updateStatusLed();
   Serial.println(F("[SYS] Setup abgeschlossen."));
 }
 
@@ -51,8 +47,5 @@ void loop() {
   handleNTP(now);         // NTP-Zeit regelmäßig synchronisieren
   handleLamp(now);        // Lampenstatus prüfen und schalten
   mqttStatusTask(now);
-  updateStatusLed();
-  updateModeLed();
-  ledUpdateTask();         // WS2812 aktualisieren
   serialCommandTask(now);  // Serielle Eingaben & Debug
 }

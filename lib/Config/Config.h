@@ -18,10 +18,6 @@ const unsigned long wifiCheckInterval = 10000;  // WLAN alle 10 Sekunden überpr
 #define PWM_RES_BITS 10  // 10 Bit Auflösung (0..1023)
 #define PWM_CHANNEL 0    // LEDC-Kanal 0
 
-/************ LEDs / Farben (NeoPixelBus/RMT) ************/
-constexpr bool LED_STATUS_ENABLED = false;
-const uint8_t LED_BRIGHTNESS = 32;
-
 /************ Lampenmodus / GrowPhase ************/
 const unsigned long MODE_DEBOUNCE_MS = 200UL;  // Modus-Schalter non-blocking entprellen
 
