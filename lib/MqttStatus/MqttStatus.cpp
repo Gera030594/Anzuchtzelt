@@ -6,6 +6,7 @@
 
 #include "BmeSensor.h"
 #include "HeartbeatWatchdog.h"
+#include "LampControl.h"
 #include "MotorControl.h"
 #include "WifiTime.h"
 #include "../../include/mqtt_secrets.h"
@@ -32,6 +33,11 @@ static constexpr char MQTT_HEARTBEAT_TOPIC[] =
 static constexpr char MQTT_MOTOR_FAULT_TOPIC[] =
     "anzuchtzelt/status/motor_fault";
 static constexpr uint8_t MQTT_OPERATIONAL_STATUS_QOS = 1;
+static constexpr char MQTT_GROW_PHASE_TOPIC[] =
+    "anzuchtzelt/status/grow_phase";
+static constexpr char MQTT_LAMP_MODE_TOPIC[] =
+    "anzuchtzelt/status/lamp_mode";
+static constexpr uint8_t MQTT_GROW_STATUS_QOS = 1;
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_temperature/config";
 static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
@@ -185,6 +191,10 @@ static HeartbeatStatus lastPublishedHeartbeatStatus = HeartbeatStatus::Grace;
 static bool heartbeatStatusPublished = false;
 static MotorFault lastPublishedMotorFault = MOTOR_FAULT_NONE;
 static bool motorFaultPublished = false;
+static GrowPhase lastPublishedGrowPhase = GrowPhase::Vegetation;
+static bool growPhasePublished = false;
+static GrowPhase lastPublishedLampModePhase = GrowPhase::Vegetation;
+static bool lampModePublished = false;
 
 static const char* heartbeatStatusToPayload(HeartbeatStatus status) {
   switch (status) {
@@ -206,6 +216,26 @@ static const char* motorFaultToPayload(MotorFault fault) {
       return "poti_invalid";
     case MOTOR_FAULT_TIMEOUT:
       return "timeout";
+  }
+  return "unknown";
+}
+
+static const char* growPhaseToPayload(GrowPhase phase) {
+  switch (phase) {
+    case GrowPhase::Vegetation:
+      return "vegetation";
+    case GrowPhase::Flowering:
+      return "flowering";
+  }
+  return "unknown";
+}
+
+static const char* lampModeToPayload(GrowPhase phase) {
+  switch (phase) {
+    case GrowPhase::Vegetation:
+      return "18h";
+    case GrowPhase::Flowering:
+      return "12h";
   }
   return "unknown";
 }
@@ -246,6 +276,42 @@ static void publishOperationalStatus(unsigned long now, bool force) {
     } else {
       lastPublishedMotorFault = motorFault;
       motorFaultPublished = true;
+    }
+  }
+}
+
+static void publishGrowStatus(bool force) {
+  const GrowPhase growPhase = getGrowPhase();
+
+  const bool growPhaseChanged =
+      !growPhasePublished || growPhase != lastPublishedGrowPhase;
+  if (force || growPhaseChanged) {
+    const uint16_t packetId = mqttClient.publish(
+        MQTT_GROW_PHASE_TOPIC,
+        MQTT_GROW_STATUS_QOS,
+        true,
+        growPhaseToPayload(growPhase));
+    if (packetId == 0) {
+      Serial.println(F("[MQTT] GrowPhase konnte nicht gesendet werden."));
+    } else {
+      lastPublishedGrowPhase = growPhase;
+      growPhasePublished = true;
+    }
+  }
+
+  const bool lampModeChanged =
+      !lampModePublished || growPhase != lastPublishedLampModePhase;
+  if (force || lampModeChanged) {
+    const uint16_t packetId = mqttClient.publish(
+        MQTT_LAMP_MODE_TOPIC,
+        MQTT_GROW_STATUS_QOS,
+        true,
+        lampModeToPayload(growPhase));
+    if (packetId == 0) {
+      Serial.println(F("[MQTT] Lampenmodus konnte nicht gesendet werden."));
+    } else {
+      lastPublishedLampModePhase = growPhase;
+      lampModePublished = true;
     }
   }
 }
@@ -371,6 +437,8 @@ void mqttStatusTask(unsigned long now) {
     mqttWasConnected = false;
     heartbeatStatusPublished = false;
     motorFaultPublished = false;
+    growPhasePublished = false;
+    lampModePublished = false;
     return;
   }
 
@@ -384,12 +452,15 @@ void mqttStatusTask(unsigned long now) {
       publishBmeStatus();
     }
     publishOperationalStatus(now, newConnection);
+    publishGrowStatus(newConnection);
     return;
   }
 
   mqttWasConnected = false;
   heartbeatStatusPublished = false;
   motorFaultPublished = false;
+  growPhasePublished = false;
+  lampModePublished = false;
   if (!mqttClient.disconnected()) return;
   const bool reconnectIntervalElapsed =
       now - lastMqttConnectAttempt_ms >= MQTT_RECONNECT_INTERVAL_MS;
