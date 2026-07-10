@@ -38,6 +38,10 @@ static constexpr char MQTT_GROW_PHASE_TOPIC[] =
 static constexpr char MQTT_LAMP_MODE_TOPIC[] =
     "anzuchtzelt/status/lamp_mode";
 static constexpr uint8_t MQTT_GROW_STATUS_QOS = 1;
+static constexpr char MQTT_LAMP_RELAY_TOPIC[] =
+    "anzuchtzelt/status/lamp_relay";
+static constexpr char MQTT_PAYLOAD_ON[] = "on";
+static constexpr char MQTT_PAYLOAD_OFF[] = "off";
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_temperature/config";
 static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
@@ -241,6 +245,8 @@ static GrowPhase lastPublishedGrowPhase = GrowPhase::Vegetation;
 static bool growPhasePublished = false;
 static GrowPhase lastPublishedLampModePhase = GrowPhase::Vegetation;
 static bool lampModePublished = false;
+static bool lastPublishedLampRelayOn = false;
+static bool lampRelayPublished = false;
 
 static const char* heartbeatStatusToPayload(HeartbeatStatus status) {
   switch (status) {
@@ -358,6 +364,27 @@ static void publishGrowStatus(bool force) {
     } else {
       lastPublishedLampModePhase = growPhase;
       lampModePublished = true;
+    }
+  }
+}
+
+static void publishLampRelayStatus(bool force) {
+  const bool lampRelayOn = isLampRelayOn();
+  const bool lampRelayChanged =
+      !lampRelayPublished || lampRelayOn != lastPublishedLampRelayOn;
+  if (force || lampRelayChanged) {
+    const char* payload = lampRelayOn ? MQTT_PAYLOAD_ON : MQTT_PAYLOAD_OFF;
+    const uint16_t packetId = mqttClient.publish(
+        MQTT_LAMP_RELAY_TOPIC,
+        MQTT_OPERATIONAL_STATUS_QOS,
+        true,
+        payload);
+    if (packetId == 0) {
+      Serial.println(
+          F("[MQTT] Lampenrelaisstatus konnte nicht gesendet werden."));
+    } else {
+      lastPublishedLampRelayOn = lampRelayOn;
+      lampRelayPublished = true;
     }
   }
 }
@@ -503,6 +530,7 @@ void mqttStatusTask(unsigned long now) {
     motorFaultPublished = false;
     growPhasePublished = false;
     lampModePublished = false;
+    lampRelayPublished = false;
     return;
   }
 
@@ -517,6 +545,7 @@ void mqttStatusTask(unsigned long now) {
     }
     publishOperationalStatus(now, newConnection);
     publishGrowStatus(newConnection);
+    publishLampRelayStatus(newConnection);
     return;
   }
 
@@ -525,6 +554,7 @@ void mqttStatusTask(unsigned long now) {
   motorFaultPublished = false;
   growPhasePublished = false;
   lampModePublished = false;
+  lampRelayPublished = false;
   if (!mqttClient.disconnected()) return;
   const bool reconnectIntervalElapsed =
       now - lastMqttConnectAttempt_ms >= MQTT_RECONNECT_INTERVAL_MS;
