@@ -7,6 +7,8 @@ extern float RH;
 extern bool bmeOK;
 extern unsigned long lastBMEGood_ms;
 
+bool tryGetBmeTemperatureC(float& value);
+bool tryGetBmeHumidityPct(float& value);
 void bmeInit();
 void bmeInitialCheck();
 void bmeConfigure();

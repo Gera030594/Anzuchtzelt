@@ -29,8 +29,12 @@ static void setBmeDisplayError(bool error) {
   bmeDisplayError = error;
 }
 
+static bool isBmeDisplayValueValid(float value) {
+  return !(isnan(value) || value < 0.0 || value > 100.0);
+}
+
 static void setHumidityDisplayValue(float rh) {
-  bmeHumidityDisplayValid = !(isnan(rh) || rh < 0.0 || rh > 100.0);
+  bmeHumidityDisplayValid = isBmeDisplayValueValid(rh);
 }
 
 bool hasBmeDisplayError() {
@@ -39,6 +43,18 @@ bool hasBmeDisplayError() {
 
 bool hasValidHumidityForDisplay() {
   return bmeHumidityDisplayValid;
+}
+
+bool tryGetBmeTemperatureC(float& value) {
+  if (!isBmeDisplayValueValid(T)) return false;
+  value = T;
+  return true;
+}
+
+bool tryGetBmeHumidityPct(float& value) {
+  if (!hasValidHumidityForDisplay()) return false;
+  value = RH;
+  return true;
 }
 
 void bmeConfigure() {
