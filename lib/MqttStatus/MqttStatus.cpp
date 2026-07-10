@@ -5,6 +5,8 @@
 #include <stdio.h>
 
 #include "BmeSensor.h"
+#include "HeartbeatWatchdog.h"
+#include "MotorControl.h"
 #include "WifiTime.h"
 #include "../../include/mqtt_secrets.h"
 
@@ -25,6 +27,11 @@ static constexpr char MQTT_PAYLOAD_TRUE[] = "true";
 static constexpr char MQTT_PAYLOAD_FALSE[] = "false";
 static constexpr uint8_t MQTT_SENSOR_QOS = 1;
 static constexpr unsigned long MQTT_SENSOR_PUBLISH_INTERVAL_MS = 10000;
+static constexpr char MQTT_HEARTBEAT_TOPIC[] =
+    "anzuchtzelt/status/heartbeat";
+static constexpr char MQTT_MOTOR_FAULT_TOPIC[] =
+    "anzuchtzelt/status/motor_fault";
+static constexpr uint8_t MQTT_OPERATIONAL_STATUS_QOS = 1;
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_temperature/config";
 static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
@@ -126,6 +133,74 @@ static unsigned long lastMqttConnectAttempt_ms = 0;
 static bool mqttConnectAttempted = false;
 static bool mqttWasConnected = false;
 static unsigned long lastMqttSensorPublish_ms = 0;
+static HeartbeatStatus lastPublishedHeartbeatStatus = HeartbeatStatus::Grace;
+static bool heartbeatStatusPublished = false;
+static MotorFault lastPublishedMotorFault = MOTOR_FAULT_NONE;
+static bool motorFaultPublished = false;
+
+static const char* heartbeatStatusToPayload(HeartbeatStatus status) {
+  switch (status) {
+    case HeartbeatStatus::Grace:
+      return "grace";
+    case HeartbeatStatus::Ok:
+      return "ok";
+    case HeartbeatStatus::Timeout:
+      return "timeout";
+  }
+  return "unknown";
+}
+
+static const char* motorFaultToPayload(MotorFault fault) {
+  switch (fault) {
+    case MOTOR_FAULT_NONE:
+      return "none";
+    case MOTOR_FAULT_POTI_INVALID:
+      return "poti_invalid";
+    case MOTOR_FAULT_TIMEOUT:
+      return "timeout";
+  }
+  return "unknown";
+}
+
+static void publishOperationalStatus(unsigned long now, bool force) {
+  const HeartbeatStatus heartbeatStatus = getHeartbeatStatus(now);
+  const MotorFault motorFault = getMotorFault();
+
+  const bool heartbeatStatusChanged =
+      !heartbeatStatusPublished ||
+      heartbeatStatus != lastPublishedHeartbeatStatus;
+  if (force || heartbeatStatusChanged) {
+    const uint16_t packetId = mqttClient.publish(
+        MQTT_HEARTBEAT_TOPIC,
+        MQTT_OPERATIONAL_STATUS_QOS,
+        true,
+        heartbeatStatusToPayload(heartbeatStatus));
+    if (packetId == 0) {
+      Serial.println(
+          F("[MQTT] Heartbeat-Status konnte nicht gesendet werden."));
+    } else {
+      lastPublishedHeartbeatStatus = heartbeatStatus;
+      heartbeatStatusPublished = true;
+    }
+  }
+
+  const bool motorFaultChanged =
+      !motorFaultPublished || motorFault != lastPublishedMotorFault;
+  if (force || motorFaultChanged) {
+    const uint16_t packetId = mqttClient.publish(
+        MQTT_MOTOR_FAULT_TOPIC,
+        MQTT_OPERATIONAL_STATUS_QOS,
+        true,
+        motorFaultToPayload(motorFault));
+    if (packetId == 0) {
+      Serial.println(
+          F("[MQTT] Motorfehlerstatus konnte nicht gesendet werden."));
+    } else {
+      lastPublishedMotorFault = motorFault;
+      motorFaultPublished = true;
+    }
+  }
+}
 
 static void publishBmeStatus() {
   float temperature = 0.0f;
@@ -228,6 +303,8 @@ void initMqttStatus() {
 void mqttStatusTask(unsigned long now) {
   if (!isWifiConnected()) {
     mqttWasConnected = false;
+    heartbeatStatusPublished = false;
+    motorFaultPublished = false;
     return;
   }
 
@@ -240,10 +317,13 @@ void mqttStatusTask(unsigned long now) {
       lastMqttSensorPublish_ms = now;
       publishBmeStatus();
     }
+    publishOperationalStatus(now, newConnection);
     return;
   }
 
   mqttWasConnected = false;
+  heartbeatStatusPublished = false;
+  motorFaultPublished = false;
   if (!mqttClient.disconnected()) return;
   const bool reconnectIntervalElapsed =
       now - lastMqttConnectAttempt_ms >= MQTT_RECONNECT_INTERVAL_MS;
