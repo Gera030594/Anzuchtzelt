@@ -196,6 +196,10 @@ static void updateBmeLeds() {
 }
 
 void updateModeLed() {
+  if (!LED_STATUS_ENABLED) {
+    return;
+  }
+
   static GrowPhase lastPhase = GrowPhase::Vegetation;
   static bool lastPhaseKnown = false;
   GrowPhase phase = getGrowPhase();
@@ -221,6 +225,10 @@ static WifiNtpLedState getWifiNtpLedState(bool wifiOk, bool ntpOk) {
 }
 
 void updateStatusLed() {
+  if (!LED_STATUS_ENABLED) {
+    return;
+  }
+
   bool wifiOk = isWifiConnected();
   bool ntpOk = isTimeSynced();
 
@@ -282,6 +290,10 @@ static void updateHeartbeatLed(unsigned long now) {
 }
 
 void ledUpdateTask() {
+  if (!LED_STATUS_ENABLED) {
+    return;
+  }
+
   static unsigned long nextShowMs = 0;
   unsigned long now = millis();
 
