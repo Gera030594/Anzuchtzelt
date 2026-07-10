@@ -9,7 +9,7 @@ Der Code muss die bestehende Arbeitsweise erhalten:
 * non-blocking Ablauf
 * klare Task-Struktur
 * stabile Hardware-Ansteuerung
-* nachvollziehbare Diagnose über Serial und LEDs
+* nachvollziehbare Diagnose über Serial, MQTT und Home Assistant
 * sichere Behandlung von Sensorfehlern
 * keine sensiblen Daten im Repository
 * PlatformIO-kompatibler Aufbau
@@ -30,7 +30,7 @@ Keine Änderung darf ohne ausdrückliche Freigabe:
 * Pins ändern
 * Secrets anfassen
 * Libraries austauschen
-* Status-LED-Logik entfernen
+* MQTT-Statusausgabe oder Home-Assistant-Discovery entfernen
 * BME680-Fehlerbehandlung oder BME680-Reinit entfernen
 * Heartbeat-Watchdog entfernen
 * Poti-Kalibrierung entfernen
@@ -67,18 +67,16 @@ Hauptprogramme/
 └─ .gitignore
 ```
 
-Langfristig darf Code aus `main.cpp` in Module ausgelagert werden, aber nur schrittweise.
+Die Fachlogik ist in Module ausgelagert; `main.cpp` orchestriert Setup und Loop.
+Weitere Auslagerungen oder Strukturänderungen erfolgen nur schrittweise.
 
-Zielstruktur für spätere Auslagerung:
+Aktuelle Modulstruktur:
 
 ```text
 lib/
 ├─ Config/
 │  ├─ Pins.h
 │  └─ Config.h
-├─ LedStatus/
-│  ├─ LedStatus.h
-│  └─ LedStatus.cpp
 ├─ BmeSensor/
 │  ├─ BmeSensor.h
 │  └─ BmeSensor.cpp
@@ -91,15 +89,25 @@ lib/
 ├─ Calibration/
 │  ├─ Calibration.h
 │  └─ Calibration.cpp
-├─ WifiTime/
-│  ├─ WifiTime.h
-│  └─ WifiTime.cpp
-└─ LampControl/
-   ├─ LampControl.h
-   └─ LampControl.cpp
+├─ LampControl/
+│  ├─ LampControl.h
+│  └─ LampControl.cpp
+├─ MqttStatus/
+│  ├─ MqttStatus.h
+│  └─ MqttStatus.cpp
+├─ PotiFeedback/
+│  ├─ PotiFeedback.h
+│  └─ PotiFeedback.cpp
+├─ SerialCommands/
+│  ├─ SerialCommands.h
+│  └─ SerialCommands.cpp
+└─ WifiTime/
+   ├─ WifiTime.h
+   └─ WifiTime.cpp
 ```
 
-Bis zur Auslagerung bleibt `main.cpp` erlaubt, solange die innere Abschnittsstruktur erhalten bleibt.
+`main.cpp` bleibt die schlanke Orchestrierung, solange die Aufrufreihenfolge und
+Task-Struktur erhalten bleiben.
 
 ---
 
@@ -111,11 +119,12 @@ Der Code arbeitet nach folgendem Muster:
 setup()
 ├─ Initialisierung
 ├─ Hardware vorbereiten
-├─ Poti, LEDs, Motor und Heartbeat initialisieren
+├─ Poti, Motor und Heartbeat initialisieren
 ├─ BME680 initialisieren und initial prüfen
 ├─ NVS öffnen und Kalibrierung laden
 ├─ Lampensteuerung starten
 ├─ WLAN starten
+├─ MQTT-Statusmodul starten
 └─ Startzustand herstellen
 
 loop()
@@ -127,8 +136,7 @@ loop()
 ├─ WLAN-Handler
 ├─ NTP-Handler
 ├─ Lampen-Handler
-├─ Status-LEDs aktualisieren
-├─ LED-Update-Task
+├─ MQTT-Status veröffentlichen
 └─ Serial-Command-Task
 ```
 
@@ -146,9 +154,7 @@ motorControlTask(now);
 handleWiFi(now);
 handleNTP(now);
 handleLamp(now);
-updateStatusLed();
-updateModeLed();
-ledUpdateTask();
+mqttStatusTask(now);
 serialCommandTask(now);
 ```
 
@@ -271,10 +277,9 @@ if (now - lastCheck > WIFI_RETRY_INTERVAL_MS) {
 Erlaubt:
 
 ```cpp
-Serial.begin(115200);
 initGeneral();
+initRelay();
 initPoti();
-initLEDs();
 initMotorControl();
 initHeartbeat();
 bmeInit();
@@ -282,11 +287,9 @@ bmeInitialCheck();
 openNVS();
 calInitLoad();
 initHardwareLampensteuerung();
-updateModeLed();
 connectWiFi();
+initMqttStatus();
 checkLampState();
-updateZoneLEDs(T);
-updateStatusLed();
 ```
 
 Nicht erlaubt:
@@ -312,7 +315,7 @@ readPotiTask(unsigned long now);
 bme680Task(unsigned long now);
 heartbeatTask(unsigned long now);
 motorControlTask(unsigned long now);
-ledUpdateTask();
+mqttStatusTask(unsigned long now);
 serialCommandTask(unsigned long now);
 handleWiFi(unsigned long now);
 handleNTP(unsigned long now);
@@ -365,10 +368,10 @@ Initialisierungen beginnen mit `init`.
 initGeneral();
 initRelay();
 initPoti();
-initLEDs();
 initMotorControl();
 initHeartbeat();
 initHardwareLampensteuerung();
+initMqttStatus();
 ```
 
 ### Handler/Tasks
@@ -402,7 +405,6 @@ MIN_DUTY
 MAX_DUTY
 MOVE_TIMEOUT
 RELAY_PULSE_LEN
-LED_BRIGHTNESS
 ```
 
 ### Pins
@@ -410,7 +412,6 @@ LED_BRIGHTNESS
 Pin-Konstanten verwenden `UPPER_SNAKE_CASE` und enden auf `_PIN`, außer bestehende Namen bleiben aus Kompatibilitätsgründen erhalten.
 
 ```cpp
-WS2812_PIN
 POTI_ADC_PIN
 HB_IN_PIN
 HB_OUT_PIN
@@ -428,11 +429,9 @@ Bestehende Namen wie `relayPin` und `modePin` dürfen bleiben, sollen bei späte
 
 Pinbelegung wird zentral gehalten.
 
-Derzeit im Hauptcode:
+Derzeit in `lib/Config/Pins.h`:
 
 ```cpp
-WS2812_PIN
-NUM_LEDS
 L298N_IN1
 L298N_IN2
 L298N_ENA
@@ -442,9 +441,10 @@ HB_OUT_PIN
 C3_WD_RELAIS_PIN
 relayPin
 modePin
-LED_STATUS
-LED_MODE
 ```
+
+GPIO16 ist aktuell frei und nicht für eine Projektfunktion reserviert. Es
+existiert keine WS2812-Datenleitung und keine externe Statusanzeige am ESP32.
 
 Neue Pinzahlen dürfen nicht verstreut im Code stehen.
 
@@ -452,7 +452,6 @@ Nicht erlaubt:
 
 ```cpp
 pinMode(23, OUTPUT);
-digitalWrite(16, HIGH);
 ```
 
 Besser:
@@ -462,7 +461,7 @@ pinMode(C3_WD_RELAIS_PIN, OUTPUT);
 digitalWrite(C3_WD_RELAIS_PIN, HIGH);
 ```
 
-Spätere Zielstruktur:
+Zentrale Ablage:
 
 ```text
 lib/Config/Pins.h
@@ -480,7 +479,6 @@ Beispiele aus dem Bestand:
 PWM_FREQ
 PWM_RES_BITS
 PWM_CHANNEL
-LED_BRIGHTNESS
 BME_INTERVAL
 BME_RETRY_MS
 BME_BAD_LIMIT
@@ -522,35 +520,27 @@ if (temperature > TEMP_UPPER_WARN_C) {
 
 ## Secrets
 
-WLAN-Daten liegen nur in einer nicht getrackten Datei.
+WLAN- und MQTT-Zugangsdaten liegen nur in nicht getrackten lokalen Dateien.
 
 Aktueller Projektstand:
 
 ```cpp
 #include "../../include/wifi_secrets.h"
+#include "../../include/mqtt_secrets.h"
 ```
 
-Die lokale Secret-Datei ist:
+Die lokalen Secret-Dateien sind:
 
 ```text
 include/wifi_secrets.h
+include/mqtt_secrets.h
 ```
 
-Nicht erlaubt:
+Zugangsdaten dürfen nicht als Stringliterale in Quellcode oder Dokumentation
+stehen. Der Programmcode verwendet ausschließlich die Makros aus den lokalen
+Secret-Headern.
 
-```cpp
-const char* ssid = "MeinWLAN";
-const char* password = "MeinPasswort";
-```
-
-Empfohlen:
-
-```cpp
-const char* ssid = WIFI_SSID;
-const char* password = WIFI_PASSWORD;
-```
-
-Die Secret-Datei darf nicht committed werden.
+Die Secret-Dateien dürfen nicht committed werden.
 
 `.gitignore` muss mindestens enthalten:
 
@@ -558,113 +548,56 @@ Die Secret-Datei darf nicht committed werden.
 .pio/
 .vscode/
 include/wifi_secrets.h
+include/mqtt_secrets.h
 *.bin
 *.elf
 ```
 
-Eine Beispiel-Datei darf committed werden:
+Die zugehörigen Beispieldateien dürfen committed werden:
 
 ```text
 include/wifi_secrets.example.h
+include/mqtt_secrets.example.h
 ```
 
 ---
 
-## LED-Regeln
+## Status über MQTT und Home Assistant
 
-WS2812-LEDs werden über `NeoPixelBus` gesteuert.
+Das aktuelle Projekt verwendet keine WS2812-Status-LEDs. Das frühere Modul
+`lib/LedStatus`, NeoPixelBus und der lokale SPI-Shim wurden vollständig
+entfernt. GPIO16 ist frei und nicht reserviert.
 
-Bestehende Grundregeln bleiben:
+`MqttStatus` ist das zentrale, nur lesende Ausgabemodul. Fachmodule stellen
+ihre Zustände über öffentliche Getter bereit; `MqttStatus` liest diese Werte
+und veröffentlicht sie, ohne die Fachlogik oder interne Variablen zu ändern.
 
-```text
-LED-Farbe nur setzen, wenn sie sich ändert
-Show() nur ausführen, wenn ledsDirty == true
-Show() nur, wenn leds.CanShow()
-maximale Update-Rate beachten
-globale Helligkeit über LED_BRIGHTNESS
-```
-
-Bestehende Hilfsfunktionen bleiben erhalten:
-
-```cpp
-RgbColor C(uint8_t r, uint8_t g, uint8_t b);
-RgbColor withBri(const RgbColor& c);
-void ledSet(uint8_t i, const RgbColor& color);
-void ledUpdateTask();
-```
-
-Direkte LED-Zugriffe außerhalb der LED-Hilfsfunktionen sind zu vermeiden.
-
-Nicht bevorzugt:
-
-```cpp
-leds.SetPixelColor(LED_STATUS, RgbColor(...));
-leds.Show();
-```
-
-Besser:
-
-```cpp
-ledSet(LED_STATUS, C(255, 0, 0));
-```
-
-`leds.Show()` bleibt auf `ledUpdateTask()` begrenzt.
-
----
-
-## Status-LED-Belegung
-
-Die Status-LEDs sind Teil der Diagnose und dürfen nicht ohne Ersatzlogik entfernt werden.
-
-Bestehende Bedeutung:
+Verbindliche Regeln:
 
 ```text
-LED0: Luftfeuchte oberer Bereich / zu hoch
-LED1: Luftfeuchte unterer Bereich / zu niedrig
-LED2: derzeit nicht fuer BME680 genutzt
-LED3: frei / derzeit unbenutzt
-LED4: obere Temperaturzone, bei BME680-Fehler vorrangig rot
-LED5: untere Temperaturzone, bei BME680-Fehler vorrangig rot
-LED6: Heartbeat-Watchdog
-LED7: WLAN/NTP-Status
-LED8: Lampenmodus 12h/18h
+retained Availability über anzuchtzelt/status
+online-Publish bei Verbindung und offline als Last Will
+Home-Assistant-MQTT-Discovery für genau 16 Statusentitäten
+Zustände nach MQTT-Reconnect erneut veröffentlichen
+Statuswerte im Normalbetrieb nur bei fachlicher Änderung veröffentlichen
+Systemstatus nur als Zusammenfassung verwenden
+Detailentitäten für die genaue Ursache erhalten
+keine command_topics
+keine MQTT-Switches oder MQTT-Number-Entitäten
+keine Subscriptions für Steuerbefehle
+keine internen Variablen der Fachmodule direkt verändern
 ```
 
-Bei einem BME680-Fehler leuchten LED4 und LED5 gleichzeitig rot.
-Dieser Fehlerstatus hat Vorrang vor der normalen Temperaturzonenanzeige.
-LED0 und LED1 zeigen die Luftfeuchte-Zone phasenabhängig an und werden nicht fuer BME-Fehler genutzt.
-LED0 und LED1 sind gegenseitig verriegelt: maximal eine der beiden LEDs darf leuchten.
-Bei ungueltiger Luftfeuchte bleiben LED0 und LED1 aus.
-Die Grow-Phase kommt aus der bestehenden 12h/18h-Umschaltung:
-18h Licht / 6h Dunkel = Vegetation, 12h Licht / 12h Dunkel = Bluete.
+Der Systemstatus auf `anzuchtzelt/status/system_state` verwendet die Payloads
+`ok`, `starting`, `calibration`, `fault` und `unknown`.
 
-Luftfeuchte-Zonen:
+Home Assistant ist die zentrale Statusanzeige. Die lokale Motor-, Lampen-,
+Sensor-, Kalibrierungs- und Watchdog-Logik arbeitet unabhängig davon weiter,
+ob Home Assistant geöffnet oder erreichbar ist. Ein Ausfall von Home
+Assistant oder des Brokers darf diese lokale Fachlogik nicht stoppen.
 
-```text
-Vegetation:
-LED0 rot >70 %, gelb 65..70 %, gruen 60..<65 %
-LED1 gruen 55..<60 %, gelb 50..<55 %, rot <50 %
-
-Bluete:
-LED0 rot >=60 %, gelb 55..<60 %, gruen 50..<55 %
-LED1 gruen 45..<50 %, gelb 40..<45 %, rot <40 %
-```
-
-LED3 bleibt frei und wird von keinem Modul als Statusanzeige gesetzt.
-MotorFault, potiValid und BME-Zustaende bleiben Fachstatus ohne LED3-Ausgabe.
-
-Farblogik muss eindeutig bleiben.
-
-Beispiele:
-
-```text
-Rot: Fehler / ungültig / Timeout
-Gelb/Orange: Warnung / Zwischenbereich
-Grün: OK / gültig / aktiv
-Aus: nicht betroffen / Schonfrist / neutral
-```
-
-Neue LED-Bedeutungen werden in der Kopf-Dokumentation und in `README.md` dokumentiert.
+Änderungen an Topics, Discovery-Entitäten oder deren fachlicher Bedeutung
+werden gemeinsam mit der Übersicht in `README.md` aktualisiert.
 
 ---
 
@@ -712,7 +645,7 @@ Bei ungültigen Werten muss mindestens passieren:
 ```text
 bmeOK entsprechend setzen
 Fehlerzähler aktualisieren
-LED-Status setzen
+öffentlichen BME-Status für MQTT und Diagnose aktualisieren
 Failsafe-Logik berücksichtigen
 Serial-Diagnose ausgeben, falls relevant
 ```
@@ -944,7 +877,7 @@ Timeout-Erkennung
 Boot-Schonfrist
 Relais-Reset bei Timeout
 Reset-Cooldown
-LED6 zeigt Zustand
+Heartbeat-Status ist über Getter und MQTT auswertbar
 ```
 
 Bestehende Funktionen:
@@ -1021,7 +954,7 @@ Regeln:
 keine blockierende Warteschleife auf WLAN
 Reconnect zyklisch prüfen
 Verbindungsversuch zeitlich begrenzen
-Status über LED anzeigen
+Verbindungsstatus über MQTT-Availability und Serial diagnostizierbar machen
 Secrets nicht im Code speichern
 ```
 
@@ -1079,7 +1012,8 @@ handleLamp(unsigned long now);
 checkLampState();
 ```
 
-Die LED8-Anzeige fuer den Lampenmodus wird zentral in `LedStatus` ueber `updateModeLed()` gesetzt.
+Grow-Phase, Lampenmodus und logischer Relaiszustand werden über öffentliche
+Getter gelesen und von `MqttStatus` nur lesend veröffentlicht.
 
 Regeln:
 
@@ -1174,7 +1108,7 @@ Kopfkommentar
 README.md
 CODING_RULES.md
 Serial-Cheatsheet
-LED-Belegung
+Home-Assistant-Entitäten und MQTT-Topics
 ```
 
 ---
@@ -1187,7 +1121,7 @@ Pflicht bei Sensor-/Hardwarefehlern:
 
 ```text
 Statusvariable setzen
-LED-Zustand setzen
+öffentlichen Status für MQTT und Diagnose aktualisieren
 Serial-Diagnose ausgeben
 sicheren Zustand herstellen
 Reinitialisierung oder sicheren Fallback versuchen, falls passend
@@ -1200,7 +1134,7 @@ Beispiele:
 ```cpp
 bmeOK = false;
 motorStop();
-// Passende LED-Ausgabe zentral setzen; LED3 bleibt frei.
+// Der zugehörige Fachstatus wird über den öffentlichen Getter sichtbar.
 Serial.println("[ERROR] Poti invalid, motor stopped");
 ```
 
@@ -1235,7 +1169,7 @@ reine Feuchte-Unplausibilitaet bei gueltiger Temperatur → kein Motor-Failsafe
 Heartbeat-Failsafe:
 
 ```text
-Timeout → LED6 rot
+Timeout → Heartbeat- und Systemstatus melden den Fehler über MQTT
 Timeout → C3-Reset-Relaispuls
 kein künstlicher OK-Zustand ohne echten RX
 ```
@@ -1262,7 +1196,6 @@ Regeln:
 
 ```text
 Zeitwerte: unsigned long
-LED-Index: uint8_t
 ADC-Rohwerte: int
 Prozentwerte: int
 Temperatur/Feuchte: float
@@ -1297,7 +1230,7 @@ WLAN/NTP
 Lampensteuerung
 Kalibrierung
 PWM/Motor
-LEDs
+MQTT-Status
 BME680
 Heartbeat
 Poti
@@ -1357,25 +1290,18 @@ bestehende Pin-/PWM-Werte bis zur späteren Bereinigung
 
 Libraries werden über `platformio.ini` verwaltet.
 
-Bestehende Libraries:
-
-```cpp
-Adafruit_BME680
-Wire
-NeoPixelBus
-Preferences
-nvs_flash
-WiFi
-time
-```
-
-Offener Punkt / zu prüfen:
+Aktuelle `lib_deps`:
 
 ```text
-ArduinoJson, OneWire und DHT sensor library werden im aktuell gelesenen platformio.ini nicht als lib_deps geführt.
-Falls sie in einem anderen Arbeitsstand auftauchen, vor dem Entfernen prüfen, ob sie im Code noch genutzt werden.
-Nicht automatisch entfernen.
+adafruit/Adafruit BME680 Library
+adafruit/Adafruit Unified Sensor
+adafruit/Adafruit BusIO
+bertmelis/espMqttClient @ 1.7.3
 ```
+
+NeoPixelBus und der lokale SPI-Shim gehören nicht mehr zum Projekt. Die vom
+ESP32-Arduino-Framework bereitgestellte SPI-Unterstützung bleibt verfügbar,
+unter anderem für Adafruit BusIO.
 
 Regeln:
 
@@ -1490,7 +1416,7 @@ BME680-Fehlerbehandlung oder BME680-Reinit entfernen
 Heartbeat-Watchdog entfernen
 Kalibrierlogik entfernen
 NVS-Daten löschen
-LED-Diagnose entfernen
+MQTT-Statusausgabe oder Home-Assistant-Discovery entfernen
 Motor-Failsafe abschwächen
 ```
 
@@ -1515,13 +1441,14 @@ Erlaubte Reihenfolge:
 ```text
 1. Konstanten sammeln
 2. Pins auslagern
-3. LED-Hilfsfunktionen auslagern
+3. öffentliche Lesezugriffe der Fachmodule ergänzen
 4. BME-Funktionen auslagern
 5. Motorfunktionen auslagern
 6. Kalibrierung auslagern
 7. Heartbeat auslagern
 8. WLAN/NTP auslagern
 9. Lampensteuerung auslagern
+10. Statuswerte nur lesend in MqttStatus integrieren
 ```
 
 Nach jedem Schritt:
@@ -1530,7 +1457,7 @@ Nach jedem Schritt:
 Build ausführen
 Upload testen, falls Hardware betroffen
 Serial-Ausgabe prüfen
-LED-Status prüfen
+MQTT-Status und Discovery prüfen
 Commit erstellen
 ```
 
@@ -1560,7 +1487,8 @@ BME680-Autodetect, Fehlerbehandlung und Reinit bleiben erhalten
 Heartbeat bleibt erhalten
 Motor-Failsafe bleibt erhalten
 Kalibrierung bleibt erhalten
-LED-Diagnose bleibt erhalten
+MQTT-Status bleibt nur lesend und vollständig
+alle 16 Home-Assistant-Discovery-Entitäten bleiben erhalten
 Serial-Befehle funktionieren
 Pins unverändert
 ```
@@ -1578,44 +1506,24 @@ git push
 
 ## Aktueller Code-Stil
 
-Der vorhandene Code verwendet diese Abschnittsstruktur:
+Der vorhandene Code ist modular aufgebaut:
 
 ```text
-Kopf-Dokumentation
-Includes
-WLAN-Daten
-NTP/Zeit
-Pinbelegung
-Zeitsteuerung
-WLAN-Überwachung
-Kalibrierung
-PWM
-LEDs/Farben
-BME680
-Heartbeat
-Motor/Regelung
-Serial-Änderungsausgabe
-Relais
-Vorwärtsdeklarationen
-Setup
-Loop
-ISR
-Poti
-Rohwert-Prozent-Umrechnung
-Temperatur-Sollwert
-Motor
-LED-Zonen
-Statusausgabe
-Kalibrierung/NVS
-BME/I2C
-Initialisierung
-Tasks
-WLAN/NTP/Lampe
-Sommerzeit
-Status-LEDs
+src/main.cpp: Setup- und Loop-Orchestrierung
+lib/Config: Konstanten und Pins
+lib/BmeSensor: BME680 und Messwert-Cache
+lib/Calibration: LUT und NVS
+lib/HeartbeatWatchdog: Heartbeat und Reset-Failsafe
+lib/LampControl: Grow-Phase und Lampenrelais
+lib/MotorControl: Motorregelung, PWM und MotorFault
+lib/MqttStatus: nur lesende MQTT-/Home-Assistant-Statusausgabe
+lib/PotiFeedback: ADC- und Positionsrückmeldung
+lib/SerialCommands: serielle Diagnose und Bedienung
+lib/WifiTime: WLAN und Zeitsynchronisation
 ```
 
-Diese Struktur bleibt gültig, bis Module ausgelagert werden.
+`main.cpp` bleibt schlank. Fachlogik gehört in das zuständige Modul;
+`MqttStatus` konsumiert ausschließlich öffentliche Statusschnittstellen.
 
 ---
 
@@ -1628,7 +1536,8 @@ Der ESP32 bleibt non-blocking.
 Der Motor bleibt failsafe.
 Der BME680 bleibt fehlerbehandelt und reinitialisierbar.
 Der Heartbeat bleibt wirksam.
-Die LEDs bleiben diagnostisch nutzbar.
+MQTT und Home Assistant bleiben eine nur lesende Statusausgabe.
+Ein Ausfall von Home Assistant stoppt keine lokale Fachlogik.
 Die Kalibrierung bleibt erhalten.
 Die Secrets bleiben privat.
 Das Projekt baut mit PlatformIO.

@@ -1,10 +1,12 @@
 # Alte und unsichere Informationen
 
-Status: Archiv. Inhalte hier nicht als aktuelle Anleitung verwenden, ohne sie zu pruefen.
+Status: historischer Stand vor Hauptprogramm_V18. Inhalte in dieser Datei sind keine aktuelle Anleitung und duerfen nur nach erneuter Pruefung verwendet werden.
 
-## Alte README-Hinweise
+Das fruehere WS2812-/LedStatus-System ist im aktuellen Hauptprogramm_V18 nicht mehr vorhanden. Veraltete NeoPixelBus- und SPI-Shim-Anweisungen werden nicht als historische Arbeitsanleitung aufbewahrt.
 
-Aus der bisherigen `README.md` uebernommen:
+## Historische README-Hinweise
+
+Aus einer frueheren `README.md` uebernommen:
 
 ```text
 Anzuchtzelt
@@ -15,24 +17,24 @@ Watchdog_ESP32
 Separater Watchdog-Controller zur Ueberwachung.
 ```
 
-Bewertung:
+Historische Bewertung:
 
-- `Hauptprogramm_V16` ist zu pruefen, da das aktuelle Projektverzeichnis `Hauptprogramm_V17` heisst.
-- `Watchdog_ESP32` ist zu pruefen, da diese Doku-Struktur nur das aktuelle Projekt beschreibt.
+- `Hauptprogramm_V16` bezeichnet einen alten Programmstand. Das aktuelle Projekt ist Hauptprogramm_V18.
+- `Watchdog_ESP32` war ein separater Projektverweis und beschreibt nicht die aktuelle Struktur dieses Repositories.
 
-Alter Pfadhinweis aus der bisherigen `README.md`:
+Alter Pfadhinweis aus der frueheren `README.md`:
 
 ```text
 C:\Users\hraki\OneDrive\Anzucht\Grosses Zelt\ESP32_Programme\Hauptprogramme
 ```
 
-Bewertung:
+Historische Bewertung:
 
-- Zu pruefen, da der aktuelle Arbeitsordner `C:\Users\hraki\OneDrive\Anzucht\Hauptprogramme\Hauptprogramm_V17` ist.
+- Der Pfad stammt aus einer frueheren Ablage und ist keine aktuelle Arbeitsanweisung fuer Hauptprogramm_V18.
 
-## Alte Workflow-Hinweise
+## Historische Workflow-Hinweise
 
-Aus der archivierten Datei `docs/Normaler_Arbeitsablauf.md` uebernommen:
+Aus der frueheren Datei `docs/Normaler_Arbeitsablauf.md` uebernommen:
 
 ```text
 Dateien aendern
@@ -43,13 +45,13 @@ git commit -m "Beschreibung der Aenderung"
 git push
 ```
 
-Bewertung:
+Historische Bewertung:
 
-- Durch `docs/05_Entwicklung.md` ersetzt.
-- `pio run` fehlte und ist nach Codeaenderungen zu pruefen beziehungsweise auszufuehren.
-- `git add .` ist zu pruefen; bevorzugt werden konkrete Dateien.
+- Dieser Ablauf wurde durch `docs/05_Entwicklung.md` ersetzt.
+- `pio run` fehlte; nach Codeaenderungen ist der PlatformIO-Build zu pruefen.
+- Statt `git add .` sollen konkrete Dateien hinzugefuegt werden.
 
-Aus der archivierten Datei `docs/Nach_jeder_Aenderung_in_CMD.md` uebernommen:
+Aus der frueheren Datei `docs/Nach_jeder_Aenderung_in_CMD.md` uebernommen:
 
 ```text
 cd C:\Users\hraki\OneDrive\Anzucht\Hauptprogramme
@@ -60,15 +62,15 @@ git push
 git commit -m "Update Hauptprogramm V16"
 ```
 
-Bewertung:
+Historische Bewertung:
 
-- `Update Hauptprogramm V16` ist zu pruefen, da das aktuelle Projekt `Hauptprogramm_V17` ist.
-- Der Pfad ist zu pruefen, da die aktuelle Arbeit im Unterordner `Hauptprogramm_V17` stattfindet.
-- `pio run` fehlte und ist nach Codeaenderungen zu pruefen beziehungsweise auszufuehren.
+- `Update Hauptprogramm V16` bezeichnet einen alten Programmstand; aktuell ist Hauptprogramm_V18.
+- Der genannte Pfad und `git add .` sind keine aktuelle Arbeitsanweisung.
+- `pio run` fehlte; der aktuelle Ablauf steht in `docs/05_Entwicklung.md`.
 
-## Alte Werkzeuguebersicht
+## Historische Werkzeuguebersicht
 
-Aus der archivierten Datei `docs/Grundaufbau_Entwicklungsumgebung.txt` uebernommen:
+Aus der frueheren Datei `docs/Grundaufbau_Entwicklungsumgebung.txt` uebernommen:
 
 ```text
 VS Code
@@ -80,28 +82,23 @@ Arduino IDE
 USB-Treiber
 ```
 
-Bewertung:
+Historische Bewertung:
 
-- In `docs/05_Entwicklung.md` uebernommen.
-- Arduino IDE als Reserve ist zu pruefen, bevor daraus ein verbindlicher Ablauf abgeleitet wird.
+- Die aktuelle Werkzeuguebersicht steht in `docs/05_Entwicklung.md`.
+- Aus diesem historischen Block allein darf kein verbindlicher Ablauf abgeleitet werden.
 
-## Datei-/Namenshinweis
+## Historischer Datei-/Namenshinweis
 
-Beobachtung aus der aktuellen Dateiliste:
+Bei einer frueheren Pruefung wurde sowohl im Dateisystem als auch in `git ls-files` der Name `CODING_RULES.md` festgestellt. Der Hinweis belegt nur den damaligen Stand und ist keine Aussage ueber spaetere Arbeitsstaende.
 
-- Das Dateisystem zeigt `CODING_RULES.md`.
-- `git ls-files` meldet aktuell ebenfalls `CODING_RULES.md`.
+## Historisch unklare externe Dateien
 
-Bewertung:
+Bei einer frueheren Dokumentationsorganisation wurden folgende externe oder nicht vorhandene Dateien erwaehnt:
 
-- Kein aktueller Case-Mismatch in diesem Repo belegt.
+- `docs/hardware/Parameter.xlsx`
+- `docs/hardware/OPV_Trocknungszelt.jpeg`
+- `docs/datasheets/Suswe-750_manual.pdf`
+- `docs/archiv/ESP32_Programme/Z_Alt/Hauptprogramm_V16/wifi_secrets.h`
+- `docs/archiv/ESP32_Programme/`
 
-## Unklare Dateien nach docs-Organisation
-
-Diese Dateien wurden nicht geloescht und nicht inhaltlich veraendert, bleiben aber fachlich zu pruefen:
-
-- `docs/hardware/Parameter.xlsx`: nicht im aktuell gelesenen Repo vorhanden; zu pruefen, falls diese Datei extern existiert.
-- `docs/hardware/OPV_Trocknungszelt.jpeg`: nicht im aktuell gelesenen Repo vorhanden; zu pruefen, falls diese Datei extern existiert.
-- `docs/datasheets/Suswe-750_manual.pdf`: nicht im aktuell gelesenen Repo vorhanden; zu pruefen, falls diese Datei extern existiert.
-- `docs/archiv/ESP32_Programme/Z_Alt/Hauptprogramm_V16/wifi_secrets.h`: nicht im aktuell gelesenen Repo vorhanden; Secret-Archivhinweis bleibt zu pruefen, falls dieser externe Archivstand existiert.
-- `docs/archiv/ESP32_Programme/`: nicht im aktuell gelesenen Repo vorhanden; zu pruefen, falls dieser externe Archivstand existiert.
+Diese Liste beschreibt keinen aktuellen Repository-Inhalt. Falls solche Dateien ausserhalb dieses Projekts existieren, muessen Zweck, Aktualitaet und insbesondere moegliche Secret-Inhalte separat geprueft werden.

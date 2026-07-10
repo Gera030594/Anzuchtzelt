@@ -1,13 +1,13 @@
 # Bedienung
 
-Status: aus vorhandener Projektdokumentation uebernommen; konkrete Bedienung am Aufbau zu pruefen.
+Die aktuelle Firmware stellt ihre Messwerte und Zustände über MQTT in Home Assistant bereit. Home Assistant dient als zentrale Statusanzeige, die Steuerung auf dem ESP32 arbeitet jedoch unabhängig davon weiter.
 
 ## Normalbetrieb
 
 - Projekt mit PlatformIO bauen: `pio run`
 - Upload bei Hardwaretest: `pio run -t upload`
 - Seriellen Monitor mit 115200 Baud verwenden: `pio device monitor`
-- Status ueber Serial-Ausgaben und WS2812-Status-LEDs beobachten
+- Status über Home Assistant beobachten und den seriellen Monitor für zusätzliche Diagnose verwenden
 
 ## Serielle Befehle
 
@@ -36,34 +36,32 @@ Zu pruefen:
 - Ob alle Befehle am Geraet wie dokumentiert reagieren.
 - Es gibt aktuell keinen Serial-Befehl zum Loeschen eines MotorFault.
 
-## LED-Status
+## Statusprüfung über Home Assistant und MQTT
 
-Aus `CODING_RULES.md` belegt:
+Das Projekt besitzt keine WS2812-Statusanzeige mehr. Zustände und Messwerte werden ausschließlich lesend über MQTT an Home Assistant übertragen.
 
-| LED | Bedeutung |
+Sinnvolle Prüfreihenfolge:
+
+1. `ESP32-Verbindung` prüfen. Diese Entität zeigt die MQTT-Erreichbarkeit über Online-Publish und Last Will an.
+2. `Systemstatus` prüfen.
+3. Bei einem auffälligen Systemstatus die betroffene Detailentität prüfen, insbesondere `BME680-Fehler`, `Heartbeat`, `Motorfehler`, `Poti-Rückmeldung` und `Zeitsynchronisation`.
+4. Den seriellen Monitor mit 115200 Baud für zusätzliche Diagnose verwenden.
+
+Mögliche Werte des zusammengefassten Systemstatus:
+
+| Payload | Bedeutung |
 | --- | --- |
-| LED0/LED1/LED2 | BME680 Plausibilitaetsstatus |
-| LED3 | frei / derzeit unbenutzt |
-| LED4 | obere Temperaturzone |
-| LED5 | untere Temperaturzone |
-| LED6 | Heartbeat-Watchdog |
-| LED7 | WLAN/NTP-Status |
-| LED8 | Lampenmodus 12h/18h |
+| `ok` | Der zusammengefasste Status ist in Ordnung. |
+| `starting` | Das System befindet sich noch in der Startphase. |
+| `calibration` | Der Kalibriermodus ist aktiv. |
+| `fault` | Mindestens ein berücksichtigter Fehlerzustand liegt vor. |
+| `unknown` | Der Zustand kann derzeit nicht eindeutig bestimmt werden. |
 
-Aktuelle Farblogik:
+Der Systemstatus ist nur eine Zusammenfassung. Die Detailentitäten liefern die genaue Ursache. Die vollständige Liste der 16 automatisch angelegten Entitäten und ihrer State-Topics steht im `README.md`.
 
-- LED3 bleibt frei und wird nicht als Statusanzeige verwendet.
-- LED7 rot: WLAN nicht verbunden und NTP nicht synchronisiert.
-- LED7 blau: WLAN nicht verbunden, NTP-Zeit war bereits synchronisiert.
-- LED7 orange: WLAN verbunden, NTP noch nicht synchronisiert.
-- LED7 gruen: WLAN verbunden und NTP synchronisiert.
-- LED8 gruen: 12h-Modus.
-- LED8 orange: 18h-Modus.
+Wenn `ESP32-Verbindung` als offline angezeigt wird, zuerst die Erreichbarkeit von WLAN und MQTT-Broker prüfen und anschließend den seriellen Monitor verwenden. Der Verbindungsstatus enthält keine Aussage über Internetzugang oder WLAN-Signalstärke.
 
-Zu pruefen:
-
-- Tatsaechliche LED-Reihenfolge am montierten Aufbau.
-- Farbwirkung am Geraet, besonders bei Warn- und Fehlerzustaenden.
+Home Assistant kann im aktuellen Stand keine Fehler quittieren oder zurücksetzen und keine Motor-, Lampen-, Kalibrier- oder sonstigen Steuerbefehle an den ESP32 senden. Es gibt keine steuerbaren MQTT-Entitäten oder Steuer-Subscriptions.
 
 ## Motorbedienung
 

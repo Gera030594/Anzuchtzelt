@@ -33,7 +33,8 @@ Zu pruefen:
 Aus `CODING_RULES.md` belegt:
 
 - Motorsteuerung ueber L298N
-- PWM ueber LEDC
+- Motor-PWM fuer L298N ENA ueber die ESP32-LEDC-Peripherie
+- `LEDC` bezeichnet hier die Framework-Funktion fuer die Motor-PWM und keine Statusanzeige
 - Poti als Positionsrueckmeldung
 - Motor-Failsafe bei ungueltigem Poti
 - Move-Timeout fuehrt zum Motorstopp
@@ -58,17 +59,21 @@ Zu pruefen:
 - Aktive Relaislogik am Aufbau.
 - Reale Zuordnung und Verdrahtung der Relais.
 
-## Status-LEDs
+## Statusschnittstelle
 
-Aus `CODING_RULES.md` belegt:
+Aus aktuellem Code belegt:
 
-- WS2812-LEDs werden ueber `NeoPixelBus` gesteuert.
-- LED-Bedeutungen stehen in `docs/01_Bedienung.md`.
-- Direkte LED-Zugriffe ausserhalb der LED-Hilfsfunktionen sind zu vermeiden.
+- Das Programm steuert keine lokale Hardware-Statusanzeige an.
+- Statuswerte werden nur lesend ueber MQTT veroeffentlicht und per Home-Assistant-MQTT-Discovery als Entitaeten bereitgestellt.
+- Die Verfuegbarkeit wird unter `anzuchtzelt/status` mit `online` oder `offline` gemeldet.
+- Der zusammengefasste Systemstatus wird unter `anzuchtzelt/status/system_state` mit `ok`, `starting`, `calibration`, `fault` oder `unknown` gemeldet.
+- Detailstatus steht fuer Temperatur, Luftfeuchte, BME680, Heartbeat, Motorfehler, GrowPhase, Lampenmodus, logischen Lampenrelaisstatus, Luefter-Sollwert, Stellposition, Poti-Gueltigkeit, Zeitsynchronisation und Kalibrierung bereit.
+- Die Statusschnittstelle fuehrt keine Steuerbefehle aus und belegt keine zusaetzlichen Hardwarepins.
 
 Zu pruefen:
 
-- Anzahl und physische Reihenfolge der LEDs am Aufbau.
+- Erreichbarkeit von WLAN, MQTT-Broker und Home Assistant.
+- Serial-Diagnose verwenden, wenn der Netzwerkstatus nicht erreichbar ist.
 
 ## Pinbelegung
 
@@ -78,7 +83,7 @@ Die Pinbelegung ist aus `lib/Config/Pins.h` belegt. Keine neuen Pinwerte erfinde
 | --- | --- |
 | I2C SDA | 21 |
 | I2C SCL | 22 |
-| WS2812 Datenpin | 16 |
+| Softwareseitig frei | 16 |
 | Motor L298N IN1 | 26 |
 | Motor L298N IN2 | 27 |
 | Motor L298N ENA/PWM | 25 |
@@ -88,6 +93,8 @@ Die Pinbelegung ist aus `lib/Config/Pins.h` belegt. Keine neuen Pinwerte erfinde
 | C3-Reset-Relais | 23 |
 | Lampen-Relais | 19 |
 | Modus-Schalter | 18 |
+
+GPIO 16 ist in `lib/Config/Pins.h` aktuell keiner Softwarefunktion zugeordnet. Vor einer neuen Verwendung ist trotzdem zu pruefen, ob am realen Aufbau noch eine Verbindung besteht.
 
 Belegt durch vorhandene Projektstruktur:
 

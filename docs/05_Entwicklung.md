@@ -1,10 +1,8 @@
 # Entwicklung
 
-Status: ersetzt die alten Workflow-Notizen. Die archivierten alten Hinweise liegen aktuell direkt unter `docs/` und sind in `docs/99_Alt_und_Unsicher.md` bewertet.
+Status: aktueller Entwicklungs- und Build-Ablauf fuer Hauptprogramm_V18.
 
 ## Werkzeuge
-
-Aus vorhandener Dokumentation belegt:
 
 - VS Code
 - PlatformIO Extension
@@ -14,10 +12,24 @@ Aus vorhandener Dokumentation belegt:
 - Arduino IDE als Reserve
 - USB-Treiber fuer ESP32
 
-Zu pruefen:
+## Build-Umgebung
 
-- `.vscode/extensions.json` ist vorhanden und enthaelt zwei PlatformIO-nahe Empfehlungen.
-- Zu pruefen bleibt nur, welche dieser Empfehlungen lokal bevorzugt wird.
+Der aktuelle Stand in `platformio.ini` verwendet:
+
+- Default-Environment `esp32dev`
+- Board `esp32dev` beziehungsweise ESP32 Dev Module
+- Arduino Framework
+- PlatformIO mit der im Projekt festgelegten ESP32-Plattform
+- Monitor-Geschwindigkeit 115200 Baud
+
+Aktuelle `lib_deps`:
+
+- `adafruit/Adafruit BME680 Library`
+- `adafruit/Adafruit Unified Sensor`
+- `adafruit/Adafruit BusIO`
+- `bertmelis/espMqttClient @ 1.7.3`
+
+NeoPixelBus ist nicht mehr in `lib_deps` eingetragen. Das entfernte LedStatus-Modul und der fruehere lokale SPI-Shim sind nicht mehr Teil des Builds; LED-spezifische NeoPixelBus- oder RMT-Buildmassnahmen sind daher nicht erforderlich. ESP32-LEDC bleibt davon unabhaengig fuer die Motor-PWM in Verwendung.
 
 ## Normaler Ablauf
 
@@ -30,20 +42,29 @@ git commit -m "type: kurze beschreibung"
 git push
 ```
 
+`pio run` ist die verbindliche Build-Pruefung nach Codeaenderungen. Dateien sollen gezielt hinzugefuegt werden; `git add .` ist fuer den normalen Ablauf nicht vorgesehen.
+
 ## Nach Codeaenderungen
 
-Aus `AGENTS.md` und `CODING_RULES.md` belegt:
+Aus `AGENTS.md` und `CODING_RULES.md` folgt:
 
-- `pio run` ausfuehren oder melden, falls nicht moeglich.
+- `pio run` ausfuehren oder melden, falls der Build nicht moeglich ist.
 - Bestehende Architektur und Task-Struktur erhalten.
 - Non-blocking bleiben.
-- Keine Pins aendern, ausser ausdruecklich verlangt.
-- Keine Secrets oder Secret-Beispieldateien aendern, ausser ausdruecklich verlangt.
+- Keine Pins aendern, ausser es wurde ausdruecklich verlangt.
+- Keine Secrets oder Secret-Beispieldateien aendern, ausser es wurde ausdruecklich verlangt.
 - BME680-Recovery, Heartbeat-Watchdog, Motor-Failsafe und Kalibrierung/NVS nicht entfernen.
 
-## Commit-Hinweise
+## Secrets
 
-Aus `CODING_RULES.md` belegt:
+Lokale Zugangsdaten bleiben ausschliesslich in den dafuer vorgesehenen lokalen Secret-Dateien, insbesondere:
+
+- `include/wifi_secrets.h`
+- `include/mqtt_secrets.h`
+
+Diese lokalen Dateien duerfen nicht committed werden. Versionierte Beispieldateien enthalten nur Platzhalter. Vor jedem Commit ist zu pruefen, dass keine Zugangsdaten, Passwoerter oder andere lokale Secret-Inhalte im Diff enthalten sind.
+
+## Commit-Hinweise
 
 - `feat`: neue Funktion
 - `fix`: Fehlerbehebung
@@ -52,14 +73,12 @@ Aus `CODING_RULES.md` belegt:
 - `chore`: Projektpflege
 - `test`: Tests
 
-Zu pruefen:
-
-- Vor `git push` sicherstellen, dass keine Secrets, `.pio`-Dateien oder unnoetigen generierten Dateien enthalten sind.
+Vor `git push` ist sicherzustellen, dass keine Secrets, `.pio`-Dateien oder unnoetigen generierten Dateien enthalten sind.
 
 ## Dokumentationsaenderungen
 
 - README kurz halten.
 - Doppelte Inhalte vermeiden.
-- Alte oder unsichere Hinweise in `docs/99_Alt_und_Unsicher.md` bewerten.
-- Archivierte alte Notizen liegen aktuell direkt unter `docs/`, nicht in `docs/archiv/`.
-- Unsichere Aussagen mit `zu pruefen` markieren.
+- Aktive Dokumentation gegen den aktuellen Code und `platformio.ini` pruefen.
+- Alte oder unsichere Hinweise eindeutig in `docs/99_Alt_und_Unsicher.md` als historisch kennzeichnen.
+- Historische Hinweise nicht als aktuelle Build-, Upload- oder Bedienungsanleitung verwenden.
