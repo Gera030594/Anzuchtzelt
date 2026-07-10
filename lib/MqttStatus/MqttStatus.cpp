@@ -25,6 +25,103 @@ static constexpr char MQTT_PAYLOAD_TRUE[] = "true";
 static constexpr char MQTT_PAYLOAD_FALSE[] = "false";
 static constexpr uint8_t MQTT_SENSOR_QOS = 1;
 static constexpr unsigned long MQTT_SENSOR_PUBLISH_INTERVAL_MS = 10000;
+static constexpr char MQTT_DISCOVERY_TEMPERATURE_TOPIC[] =
+    "homeassistant/sensor/anzuchtzelt_temperature/config";
+static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
+    "homeassistant/sensor/anzuchtzelt_humidity/config";
+static constexpr char MQTT_DISCOVERY_BME_ERROR_TOPIC[] =
+    "homeassistant/binary_sensor/anzuchtzelt_bme_error/config";
+static constexpr uint8_t MQTT_DISCOVERY_QOS = 1;
+static constexpr char MQTT_DISCOVERY_TEMPERATURE_PAYLOAD[] = R"json({
+  "name": "Temperatur",
+  "unique_id": "anzuchtzelt_temperature",
+  "state_topic": "anzuchtzelt/sensor/temperature",
+  "device_class": "temperature",
+  "state_class": "measurement",
+  "unit_of_measurement": "\u00B0C",
+  "qos": 1,
+  "availability": [
+    {
+      "topic": "anzuchtzelt/status",
+      "payload_available": "online",
+      "payload_not_available": "offline"
+    },
+    {
+      "topic": "anzuchtzelt/status/bme_ok",
+      "payload_available": "true",
+      "payload_not_available": "false"
+    }
+  ],
+  "availability_mode": "all",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_HUMIDITY_PAYLOAD[] = R"json({
+  "name": "Luftfeuchtigkeit",
+  "unique_id": "anzuchtzelt_humidity",
+  "state_topic": "anzuchtzelt/sensor/humidity",
+  "device_class": "humidity",
+  "state_class": "measurement",
+  "unit_of_measurement": "%",
+  "qos": 1,
+  "availability": [
+    {
+      "topic": "anzuchtzelt/status",
+      "payload_available": "online",
+      "payload_not_available": "offline"
+    },
+    {
+      "topic": "anzuchtzelt/status/bme_ok",
+      "payload_available": "true",
+      "payload_not_available": "false"
+    }
+  ],
+  "availability_mode": "all",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_BME_ERROR_PAYLOAD[] = R"json({
+  "name": "BME680 Fehler",
+  "unique_id": "anzuchtzelt_bme_error",
+  "state_topic": "anzuchtzelt/status/bme_ok",
+  "device_class": "problem",
+  "entity_category": "diagnostic",
+  "payload_on": "false",
+  "payload_off": "true",
+  "qos": 1,
+  "availability_topic": "anzuchtzelt/status",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
 static unsigned long lastMqttConnectAttempt_ms = 0;
 static bool mqttConnectAttempted = false;
 static bool mqttWasConnected = false;
@@ -71,6 +168,34 @@ static void publishBmeStatus() {
   }
 }
 
+static void publishHomeAssistantDiscovery() {
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_TEMPERATURE_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_TEMPERATURE_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] Temperatur-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_HUMIDITY_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_HUMIDITY_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] Luftfeuchte-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_BME_ERROR_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_BME_ERROR_PAYLOAD) == 0) {
+    Serial.println(F("[MQTT] BME-Discovery konnte nicht gesendet werden."));
+  }
+}
+
 static void onMqttConnect(bool sessionPresent) {
   (void)sessionPresent;
   Serial.println(F("[MQTT] Verbunden."));
@@ -83,6 +208,8 @@ static void onMqttConnect(bool sessionPresent) {
   if (packetId == 0) {
     Serial.println(F("[MQTT] Online-Status konnte nicht gesendet werden."));
   }
+
+  publishHomeAssistantDiscovery();
 }
 
 void initMqttStatus() {
