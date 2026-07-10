@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "BmeSensor.h"
+#include "Calibration.h"
 #include "HeartbeatWatchdog.h"
 #include "LampControl.h"
 #include "MotorControl.h"
@@ -54,6 +55,10 @@ static constexpr char MQTT_POTI_FEEDBACK_VALID_TOPIC[] =
     "anzuchtzelt/status/poti_feedback_valid";
 static constexpr char MQTT_TIME_SYNCED_TOPIC[] =
     "anzuchtzelt/status/time_synced";
+static constexpr char MQTT_CALIBRATION_POINTS_TOPIC[] =
+    "anzuchtzelt/sensor/calibration_points";
+static constexpr char MQTT_CALIBRATION_MODE_ACTIVE_TOPIC[] =
+    "anzuchtzelt/status/calibration_mode_active";
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_temperature/config";
 static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
@@ -432,6 +437,10 @@ static unsigned long pendingMotorPositionSince_ms = 0;
 static bool pendingMotorPositionActive = false;
 static bool lastPublishedTimeSynced = false;
 static bool timeSyncedPublished = false;
+static int lastPublishedCalibrationPoints = 0;
+static bool calibrationPointsPublished = false;
+static bool lastPublishedCalibrationModeActive = false;
+static bool calibrationModeActivePublished = false;
 
 static const char* heartbeatStatusToPayload(HeartbeatStatus status) {
   switch (status) {
@@ -722,6 +731,61 @@ static void publishTimeSyncStatus(bool force) {
   }
 }
 
+static void publishCalibrationStatus(bool force) {
+  const int calibrationPoints = getCalibrationPointCount();
+  const bool calibrationModeActive = isCalibrationModeActive();
+
+  if (calibrationPoints < 2 || calibrationPoints > 5) {
+    Serial.println(F("[MQTT] Ungültige Anzahl Kalibrierpunkte."));
+  } else {
+    const bool calibrationPointsChanged =
+        !calibrationPointsPublished ||
+        calibrationPoints != lastPublishedCalibrationPoints;
+    if (force || calibrationPointsChanged) {
+      char payload[12];
+      const int payloadLength =
+          snprintf(payload, sizeof(payload), "%d", calibrationPoints);
+      if (payloadLength < 0 ||
+          payloadLength >= static_cast<int>(sizeof(payload))) {
+        Serial.println(
+            F("[MQTT] Kalibrierpunktanzahl konnte nicht formatiert werden."));
+      } else {
+        const uint16_t packetId = mqttClient.publish(
+            MQTT_CALIBRATION_POINTS_TOPIC,
+            MQTT_OPERATIONAL_STATUS_QOS,
+            true,
+            payload);
+        if (packetId == 0) {
+          Serial.println(
+              F("[MQTT] Kalibrierpunktanzahl konnte nicht gesendet werden."));
+        } else {
+          lastPublishedCalibrationPoints = calibrationPoints;
+          calibrationPointsPublished = true;
+        }
+      }
+    }
+  }
+
+  const bool calibrationModeChanged =
+      !calibrationModeActivePublished ||
+      calibrationModeActive != lastPublishedCalibrationModeActive;
+  if (force || calibrationModeChanged) {
+    const char* payload =
+        calibrationModeActive ? MQTT_PAYLOAD_TRUE : MQTT_PAYLOAD_FALSE;
+    const uint16_t packetId = mqttClient.publish(
+        MQTT_CALIBRATION_MODE_ACTIVE_TOPIC,
+        MQTT_OPERATIONAL_STATUS_QOS,
+        true,
+        payload);
+    if (packetId == 0) {
+      Serial.println(F("[MQTT] Kalibriermodus konnte nicht gesendet werden."));
+    } else {
+      lastPublishedCalibrationModeActive = calibrationModeActive;
+      calibrationModeActivePublished = true;
+    }
+  }
+}
+
 static void publishBmeStatus() {
   float temperature = 0.0f;
   float humidity = 0.0f;
@@ -923,6 +987,8 @@ void mqttStatusTask(unsigned long now) {
     motorPositionPctPublished = false;
     pendingMotorPositionActive = false;
     timeSyncedPublished = false;
+    calibrationPointsPublished = false;
+    calibrationModeActivePublished = false;
     return;
   }
 
@@ -941,6 +1007,7 @@ void mqttStatusTask(unsigned long now) {
     publishFanTargetPct(newConnection);
     publishMotorFeedbackStatus(now, newConnection);
     publishTimeSyncStatus(newConnection);
+    publishCalibrationStatus(newConnection);
     return;
   }
 
@@ -955,6 +1022,8 @@ void mqttStatusTask(unsigned long now) {
   motorPositionPctPublished = false;
   pendingMotorPositionActive = false;
   timeSyncedPublished = false;
+  calibrationPointsPublished = false;
+  calibrationModeActivePublished = false;
   if (!mqttClient.disconnected()) return;
   const bool reconnectIntervalElapsed =
       now - lastMqttConnectAttempt_ms >= MQTT_RECONNECT_INTERVAL_MS;
