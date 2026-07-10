@@ -48,6 +48,10 @@ static constexpr char MQTT_DISCOVERY_HEARTBEAT_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_heartbeat/config";
 static constexpr char MQTT_DISCOVERY_MOTOR_FAULT_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_motor_fault/config";
+static constexpr char MQTT_DISCOVERY_GROW_PHASE_TOPIC[] =
+    "homeassistant/sensor/anzuchtzelt_grow_phase/config";
+static constexpr char MQTT_DISCOVERY_LAMP_MODE_TOPIC[] =
+    "homeassistant/sensor/anzuchtzelt_lamp_mode/config";
 static constexpr uint8_t MQTT_DISCOVERY_QOS = 1;
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_PAYLOAD[] = R"json({
   "name": "Temperatur",
@@ -167,6 +171,48 @@ static constexpr char MQTT_DISCOVERY_MOTOR_FAULT_PAYLOAD[] = R"json({
   "state_topic": "anzuchtzelt/status/motor_fault",
   "entity_category": "diagnostic",
   "icon": "mdi:alert-circle-outline",
+  "qos": 1,
+  "availability_topic": "anzuchtzelt/status",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_GROW_PHASE_PAYLOAD[] = R"json({
+  "name": "Grow-Phase",
+  "unique_id": "anzuchtzelt_grow_phase",
+  "state_topic": "anzuchtzelt/status/grow_phase",
+  "icon": "mdi:sprout",
+  "qos": 1,
+  "availability_topic": "anzuchtzelt/status",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_LAMP_MODE_PAYLOAD[] = R"json({
+  "name": "Lampenmodus",
+  "unique_id": "anzuchtzelt_lamp_mode",
+  "state_topic": "anzuchtzelt/status/lamp_mode",
+  "icon": "mdi:clock-outline",
   "qos": 1,
   "availability_topic": "anzuchtzelt/status",
   "payload_available": "online",
@@ -400,6 +446,24 @@ static void publishHomeAssistantDiscovery() {
           MQTT_DISCOVERY_MOTOR_FAULT_PAYLOAD) == 0) {
     Serial.println(
         F("[MQTT] Motorfehler-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_GROW_PHASE_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_GROW_PHASE_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] GrowPhase-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_LAMP_MODE_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_LAMP_MODE_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] Lampenmodus-Discovery konnte nicht gesendet werden."));
   }
 }
 
