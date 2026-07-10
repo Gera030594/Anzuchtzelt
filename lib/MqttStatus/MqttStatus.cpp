@@ -99,6 +99,8 @@ static constexpr char MQTT_DISCOVERY_CALIBRATION_POINTS_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_calibration_points/config";
 static constexpr char MQTT_DISCOVERY_CALIBRATION_MODE_ACTIVE_TOPIC[] =
     "homeassistant/binary_sensor/anzuchtzelt_calibration_mode_active/config";
+static constexpr char MQTT_DISCOVERY_SYSTEM_STATE_TOPIC[] =
+    "homeassistant/sensor/anzuchtzelt_system_state/config";
 static constexpr uint8_t MQTT_DISCOVERY_QOS = 1;
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_PAYLOAD[] = R"json({
   "name": "Temperatur",
@@ -456,6 +458,27 @@ static constexpr char MQTT_DISCOVERY_CALIBRATION_MODE_ACTIVE_PAYLOAD[] = R"json(
   "payload_off": "false",
   "icon": "mdi:tools",
   "entity_category": "diagnostic",
+  "qos": 1,
+  "availability_topic": "anzuchtzelt/status",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_SYSTEM_STATE_PAYLOAD[] = R"json({
+  "name": "Systemstatus",
+  "unique_id": "anzuchtzelt_system_state",
+  "state_topic": "anzuchtzelt/status/system_state",
+  "icon": "mdi:state-machine",
   "qos": 1,
   "availability_topic": "anzuchtzelt/status",
   "payload_available": "online",
@@ -1106,6 +1129,15 @@ static void publishHomeAssistantDiscovery() {
           MQTT_DISCOVERY_CALIBRATION_MODE_ACTIVE_PAYLOAD) == 0) {
     Serial.println(
         F("[MQTT] Kalibriermodus-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_SYSTEM_STATE_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_SYSTEM_STATE_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] Systemstatus-Discovery konnte nicht gesendet werden."));
   }
 }
 
