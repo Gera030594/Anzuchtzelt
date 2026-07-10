@@ -8,6 +8,7 @@ enum class GrowPhase {
 };
 
 GrowPhase getGrowPhase();
+bool isLampRelayOn();
 void updateGrowPhase(unsigned long now);
 void initHardwareLampensteuerung();
 void handleLamp(unsigned long now);

@@ -57,6 +57,10 @@ GrowPhase getGrowPhase() {
   return modeStableHigh ? GrowPhase::Flowering : GrowPhase::Vegetation;
 }
 
+bool isLampRelayOn() {
+  return relayState;
+}
+
 void handleLamp(unsigned long now) {
   updateGrowPhase(now);
 
