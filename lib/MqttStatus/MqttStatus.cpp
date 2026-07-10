@@ -48,6 +48,8 @@ static constexpr char MQTT_MOTOR_POSITION_PCT_TOPIC[] =
     "anzuchtzelt/sensor/motor_position_pct";
 static constexpr char MQTT_POTI_FEEDBACK_VALID_TOPIC[] =
     "anzuchtzelt/status/poti_feedback_valid";
+static constexpr char MQTT_TIME_SYNCED_TOPIC[] =
+    "anzuchtzelt/status/time_synced";
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_temperature/config";
 static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
@@ -370,6 +372,8 @@ static bool lastPublishedPotiFeedbackValid = false;
 static bool potiFeedbackValidPublished = false;
 static int lastPublishedMotorPositionPct = 0;
 static bool motorPositionPctPublished = false;
+static bool lastPublishedTimeSynced = false;
+static bool timeSyncedPublished = false;
 
 static const char* heartbeatStatusToPayload(HeartbeatStatus status) {
   switch (status) {
@@ -608,6 +612,27 @@ static void publishMotorFeedbackStatus(bool force) {
   }
 }
 
+static void publishTimeSyncStatus(bool force) {
+  const bool synced = isTimeSynced();
+  const bool timeSyncChanged =
+      !timeSyncedPublished || synced != lastPublishedTimeSynced;
+  if (force || timeSyncChanged) {
+    const char* payload = synced ? MQTT_PAYLOAD_TRUE : MQTT_PAYLOAD_FALSE;
+    const uint16_t packetId = mqttClient.publish(
+        MQTT_TIME_SYNCED_TOPIC,
+        MQTT_OPERATIONAL_STATUS_QOS,
+        true,
+        payload);
+    if (packetId == 0) {
+      Serial.println(
+          F("[MQTT] Zeitsynchronisationsstatus konnte nicht gesendet werden."));
+    } else {
+      lastPublishedTimeSynced = synced;
+      timeSyncedPublished = true;
+    }
+  }
+}
+
 static void publishBmeStatus() {
   float temperature = 0.0f;
   float humidity = 0.0f;
@@ -789,6 +814,7 @@ void mqttStatusTask(unsigned long now) {
     fanTargetPctPublished = false;
     potiFeedbackValidPublished = false;
     motorPositionPctPublished = false;
+    timeSyncedPublished = false;
     return;
   }
 
@@ -806,6 +832,7 @@ void mqttStatusTask(unsigned long now) {
     publishLampRelayStatus(newConnection);
     publishFanTargetPct(newConnection);
     publishMotorFeedbackStatus(newConnection);
+    publishTimeSyncStatus(newConnection);
     return;
   }
 
@@ -818,6 +845,7 @@ void mqttStatusTask(unsigned long now) {
   fanTargetPctPublished = false;
   potiFeedbackValidPublished = false;
   motorPositionPctPublished = false;
+  timeSyncedPublished = false;
   if (!mqttClient.disconnected()) return;
   const bool reconnectIntervalElapsed =
       now - lastMqttConnectAttempt_ms >= MQTT_RECONNECT_INTERVAL_MS;
