@@ -66,6 +66,10 @@ static constexpr char MQTT_DISCOVERY_LAMP_RELAY_TOPIC[] =
     "homeassistant/binary_sensor/anzuchtzelt_lamp_relay/config";
 static constexpr char MQTT_DISCOVERY_FAN_TARGET_PCT_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_fan_target_pct/config";
+static constexpr char MQTT_DISCOVERY_MOTOR_POSITION_PCT_TOPIC[] =
+    "homeassistant/sensor/anzuchtzelt_motor_position_pct/config";
+static constexpr char MQTT_DISCOVERY_POTI_FEEDBACK_VALID_TOPIC[] =
+    "homeassistant/binary_sensor/anzuchtzelt_poti_feedback_valid/config";
 static constexpr uint8_t MQTT_DISCOVERY_QOS = 1;
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_PAYLOAD[] = R"json({
   "name": "Temperatur",
@@ -273,6 +277,63 @@ static constexpr char MQTT_DISCOVERY_FAN_TARGET_PCT_PAYLOAD[] = R"json({
   "unit_of_measurement": "%",
   "suggested_display_precision": 0,
   "icon": "mdi:fan",
+  "qos": 1,
+  "availability_topic": "anzuchtzelt/status",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_MOTOR_POSITION_PCT_PAYLOAD[] = R"json({
+  "name": "Stellposition",
+  "unique_id": "anzuchtzelt_motor_position_pct",
+  "state_topic": "anzuchtzelt/sensor/motor_position_pct",
+  "unit_of_measurement": "%",
+  "suggested_display_precision": 0,
+  "icon": "mdi:tune-vertical",
+  "qos": 1,
+  "availability": [
+    {
+      "topic": "anzuchtzelt/status",
+      "payload_available": "online",
+      "payload_not_available": "offline"
+    },
+    {
+      "topic": "anzuchtzelt/status/poti_feedback_valid",
+      "payload_available": "true",
+      "payload_not_available": "false"
+    }
+  ],
+  "availability_mode": "all",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_POTI_FEEDBACK_VALID_PAYLOAD[] = R"json({
+  "name": "Poti-Rückmeldung",
+  "unique_id": "anzuchtzelt_poti_feedback_valid",
+  "state_topic": "anzuchtzelt/status/poti_feedback_valid",
+  "device_class": "connectivity",
+  "entity_category": "diagnostic",
+  "payload_on": "true",
+  "payload_off": "false",
   "qos": 1,
   "availability_topic": "anzuchtzelt/status",
   "payload_available": "online",
@@ -667,6 +728,24 @@ static void publishHomeAssistantDiscovery() {
           MQTT_DISCOVERY_FAN_TARGET_PCT_PAYLOAD) == 0) {
     Serial.println(
         F("[MQTT] Lüfter-Sollwert-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_MOTOR_POSITION_PCT_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_MOTOR_POSITION_PCT_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] Stellposition-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_POTI_FEEDBACK_VALID_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_POTI_FEEDBACK_VALID_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] Poti-Rückmeldung-Discovery konnte nicht gesendet werden."));
   }
 }
 
