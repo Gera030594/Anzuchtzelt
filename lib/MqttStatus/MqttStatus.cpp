@@ -42,6 +42,8 @@ static constexpr char MQTT_LAMP_RELAY_TOPIC[] =
     "anzuchtzelt/status/lamp_relay";
 static constexpr char MQTT_PAYLOAD_ON[] = "on";
 static constexpr char MQTT_PAYLOAD_OFF[] = "off";
+static constexpr char MQTT_FAN_TARGET_PCT_TOPIC[] =
+    "anzuchtzelt/sensor/fan_target_pct";
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_temperature/config";
 static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
@@ -272,6 +274,8 @@ static GrowPhase lastPublishedLampModePhase = GrowPhase::Vegetation;
 static bool lampModePublished = false;
 static bool lastPublishedLampRelayOn = false;
 static bool lampRelayPublished = false;
+static int lastPublishedFanTargetPct = 0;
+static bool fanTargetPctPublished = false;
 
 static const char* heartbeatStatusToPayload(HeartbeatStatus status) {
   switch (status) {
@@ -411,6 +415,40 @@ static void publishLampRelayStatus(bool force) {
       lastPublishedLampRelayOn = lampRelayOn;
       lampRelayPublished = true;
     }
+  }
+}
+
+static void publishFanTargetPct(bool force) {
+  const int fanTargetPct = getMotorTargetPct();
+  if (fanTargetPct < 0 || fanTargetPct > 100) {
+    Serial.println(F("[MQTT] Ungültiger Lüfter-Sollwert."));
+    return;
+  }
+
+  const bool fanTargetPctChanged =
+      !fanTargetPctPublished || fanTargetPct != lastPublishedFanTargetPct;
+  if (!force && !fanTargetPctChanged) return;
+
+  char payload[12];
+  const int payloadLength =
+      snprintf(payload, sizeof(payload), "%d", fanTargetPct);
+  if (payloadLength < 0 ||
+      payloadLength >= static_cast<int>(sizeof(payload))) {
+    Serial.println(
+        F("[MQTT] Lüfter-Sollwert konnte nicht formatiert werden."));
+    return;
+  }
+
+  const uint16_t packetId = mqttClient.publish(
+      MQTT_FAN_TARGET_PCT_TOPIC,
+      MQTT_OPERATIONAL_STATUS_QOS,
+      true,
+      payload);
+  if (packetId == 0) {
+    Serial.println(F("[MQTT] Lüfter-Sollwert konnte nicht gesendet werden."));
+  } else {
+    lastPublishedFanTargetPct = fanTargetPct;
+    fanTargetPctPublished = true;
   }
 }
 
@@ -565,6 +603,7 @@ void mqttStatusTask(unsigned long now) {
     growPhasePublished = false;
     lampModePublished = false;
     lampRelayPublished = false;
+    fanTargetPctPublished = false;
     return;
   }
 
@@ -580,6 +619,7 @@ void mqttStatusTask(unsigned long now) {
     publishOperationalStatus(now, newConnection);
     publishGrowStatus(newConnection);
     publishLampRelayStatus(newConnection);
+    publishFanTargetPct(newConnection);
     return;
   }
 
@@ -589,6 +629,7 @@ void mqttStatusTask(unsigned long now) {
   growPhasePublished = false;
   lampModePublished = false;
   lampRelayPublished = false;
+  fanTargetPctPublished = false;
   if (!mqttClient.disconnected()) return;
   const bool reconnectIntervalElapsed =
       now - lastMqttConnectAttempt_ms >= MQTT_RECONNECT_INTERVAL_MS;
