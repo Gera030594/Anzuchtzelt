@@ -7,6 +7,7 @@
 #include "LampControl.h"
 #include "LedStatus.h"
 #include "MotorControl.h"
+#include "MqttStatus.h"
 #include "Pins.h"
 #include "PotiFeedback.h"
 #include "SerialCommands.h"
@@ -33,6 +34,7 @@ void setup() {
   initHardwareLampensteuerung();  // Initialisiere Pins, serielle Schnittstelle, Status
   updateModeLed();
   connectWiFi();      // WLAN-Verbindung aufbauen
+  initMqttStatus();
   checkLampState();   // Initialer Zustand (z. B. Relais aus)
   updateStatusLed();
   Serial.println(F("[SYS] Setup abgeschlossen."));
@@ -48,6 +50,7 @@ void loop() {
   handleWiFi(now);        // WLAN prüfen und ggf. neu verbinden
   handleNTP(now);         // NTP-Zeit regelmäßig synchronisieren
   handleLamp(now);        // Lampenstatus prüfen und schalten
+  mqttStatusTask(now);
   updateStatusLed();
   updateModeLed();
   ledUpdateTask();         // WS2812 aktualisieren
