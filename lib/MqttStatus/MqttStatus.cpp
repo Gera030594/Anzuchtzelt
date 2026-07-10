@@ -12,6 +12,14 @@
 #include "WifiTime.h"
 #include "../../include/mqtt_secrets.h"
 
+enum class MqttSystemState {
+  Unknown,
+  Starting,
+  Calibration,
+  Ok,
+  Fault
+};
+
 static espMqttClient mqttClient;
 static constexpr char MQTT_CLIENT_ID[] = "anzuchtzelt-esp32";
 static constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000;
@@ -59,6 +67,8 @@ static constexpr char MQTT_CALIBRATION_POINTS_TOPIC[] =
     "anzuchtzelt/sensor/calibration_points";
 static constexpr char MQTT_CALIBRATION_MODE_ACTIVE_TOPIC[] =
     "anzuchtzelt/status/calibration_mode_active";
+static constexpr char MQTT_SYSTEM_STATE_TOPIC[] =
+    "anzuchtzelt/status/system_state";
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_temperature/config";
 static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
@@ -492,6 +502,8 @@ static int lastPublishedCalibrationPoints = 0;
 static bool calibrationPointsPublished = false;
 static bool lastPublishedCalibrationModeActive = false;
 static bool calibrationModeActivePublished = false;
+static MqttSystemState lastPublishedSystemState = MqttSystemState::Unknown;
+static bool systemStatePublished = false;
 
 static const char* heartbeatStatusToPayload(HeartbeatStatus status) {
   switch (status) {
@@ -837,6 +849,89 @@ static void publishCalibrationStatus(bool force) {
   }
 }
 
+static MqttSystemState determineSystemState(unsigned long now) {
+  const HeartbeatStatus heartbeatStatus = getHeartbeatStatus(now);
+  const MotorFault currentMotorFault = getMotorFault();
+  const bool feedbackValid = isPotiFeedbackValid();
+  const bool bmeDisplayError = hasBmeDisplayError();
+  const bool systemTimeSynced = isTimeSynced();
+  const bool calibrationActive = isCalibrationModeActive();
+
+  switch (heartbeatStatus) {
+    case HeartbeatStatus::Grace:
+    case HeartbeatStatus::Ok:
+    case HeartbeatStatus::Timeout:
+      break;
+    default:
+      return MqttSystemState::Unknown;
+  }
+
+  switch (currentMotorFault) {
+    case MOTOR_FAULT_NONE:
+    case MOTOR_FAULT_POTI_INVALID:
+    case MOTOR_FAULT_TIMEOUT:
+      break;
+    default:
+      return MqttSystemState::Unknown;
+  }
+
+  const bool fault =
+      heartbeatStatus == HeartbeatStatus::Timeout ||
+      currentMotorFault != MOTOR_FAULT_NONE ||
+      !feedbackValid || bmeDisplayError;
+  if (fault) return MqttSystemState::Fault;
+
+  if (calibrationActive) return MqttSystemState::Calibration;
+
+  if (heartbeatStatus == HeartbeatStatus::Grace || !systemTimeSynced) {
+    return MqttSystemState::Starting;
+  }
+
+  const bool systemOk =
+      heartbeatStatus == HeartbeatStatus::Ok &&
+      currentMotorFault == MOTOR_FAULT_NONE &&
+      feedbackValid && !bmeDisplayError &&
+      systemTimeSynced && !calibrationActive;
+  if (systemOk) return MqttSystemState::Ok;
+
+  return MqttSystemState::Unknown;
+}
+
+static const char* systemStateToPayload(MqttSystemState state) {
+  switch (state) {
+    case MqttSystemState::Ok:
+      return "ok";
+    case MqttSystemState::Starting:
+      return "starting";
+    case MqttSystemState::Calibration:
+      return "calibration";
+    case MqttSystemState::Fault:
+      return "fault";
+    case MqttSystemState::Unknown:
+      return "unknown";
+  }
+  return "unknown";
+}
+
+static void publishSystemState(unsigned long now, bool force) {
+  const MqttSystemState systemState = determineSystemState(now);
+  const bool systemStateChanged =
+      !systemStatePublished || systemState != lastPublishedSystemState;
+  if (force || systemStateChanged) {
+    const uint16_t packetId = mqttClient.publish(
+        MQTT_SYSTEM_STATE_TOPIC,
+        MQTT_OPERATIONAL_STATUS_QOS,
+        true,
+        systemStateToPayload(systemState));
+    if (packetId == 0) {
+      Serial.println(F("[MQTT] Systemstatus konnte nicht gesendet werden."));
+    } else {
+      lastPublishedSystemState = systemState;
+      systemStatePublished = true;
+    }
+  }
+}
+
 static void publishBmeStatus() {
   float temperature = 0.0f;
   float humidity = 0.0f;
@@ -1058,6 +1153,7 @@ void mqttStatusTask(unsigned long now) {
     timeSyncedPublished = false;
     calibrationPointsPublished = false;
     calibrationModeActivePublished = false;
+    systemStatePublished = false;
     return;
   }
 
@@ -1077,6 +1173,7 @@ void mqttStatusTask(unsigned long now) {
     publishMotorFeedbackStatus(now, newConnection);
     publishTimeSyncStatus(newConnection);
     publishCalibrationStatus(newConnection);
+    publishSystemState(now, newConnection);
     return;
   }
 
@@ -1093,6 +1190,7 @@ void mqttStatusTask(unsigned long now) {
   timeSyncedPublished = false;
   calibrationPointsPublished = false;
   calibrationModeActivePublished = false;
+  systemStatePublished = false;
   if (!mqttClient.disconnected()) return;
   const bool reconnectIntervalElapsed =
       now - lastMqttConnectAttempt_ms >= MQTT_RECONNECT_INTERVAL_MS;
