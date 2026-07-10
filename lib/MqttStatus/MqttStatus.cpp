@@ -44,6 +44,10 @@ static constexpr char MQTT_PAYLOAD_ON[] = "on";
 static constexpr char MQTT_PAYLOAD_OFF[] = "off";
 static constexpr char MQTT_FAN_TARGET_PCT_TOPIC[] =
     "anzuchtzelt/sensor/fan_target_pct";
+static constexpr char MQTT_MOTOR_POSITION_PCT_TOPIC[] =
+    "anzuchtzelt/sensor/motor_position_pct";
+static constexpr char MQTT_POTI_FEEDBACK_VALID_TOPIC[] =
+    "anzuchtzelt/status/poti_feedback_valid";
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_temperature/config";
 static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
@@ -301,6 +305,10 @@ static bool lastPublishedLampRelayOn = false;
 static bool lampRelayPublished = false;
 static int lastPublishedFanTargetPct = 0;
 static bool fanTargetPctPublished = false;
+static bool lastPublishedPotiFeedbackValid = false;
+static bool potiFeedbackValidPublished = false;
+static int lastPublishedMotorPositionPct = 0;
+static bool motorPositionPctPublished = false;
 
 static const char* heartbeatStatusToPayload(HeartbeatStatus status) {
   switch (status) {
@@ -477,6 +485,68 @@ static void publishFanTargetPct(bool force) {
   }
 }
 
+static void publishMotorFeedbackStatus(bool force) {
+  const bool feedbackValid = isPotiFeedbackValid();
+  int positionPct = 0;
+  bool positionAvailable = false;
+  if (feedbackValid) {
+    positionAvailable = tryGetMotorPositionPct(positionPct);
+  }
+
+  const bool valid =
+      feedbackValid && positionAvailable &&
+      positionPct >= 0 && positionPct <= 100;
+  const bool feedbackValidChanged =
+      !potiFeedbackValidPublished ||
+      valid != lastPublishedPotiFeedbackValid;
+  if (force || feedbackValidChanged) {
+    const char* payload = valid ? MQTT_PAYLOAD_TRUE : MQTT_PAYLOAD_FALSE;
+    const uint16_t packetId = mqttClient.publish(
+        MQTT_POTI_FEEDBACK_VALID_TOPIC,
+        MQTT_OPERATIONAL_STATUS_QOS,
+        true,
+        payload);
+    if (packetId == 0) {
+      Serial.println(
+          F("[MQTT] Poti-Gültigkeit konnte nicht gesendet werden."));
+    } else {
+      lastPublishedPotiFeedbackValid = valid;
+      potiFeedbackValidPublished = true;
+    }
+  }
+
+  if (!valid) {
+    motorPositionPctPublished = false;
+    return;
+  }
+
+  const bool motorPositionPctChanged =
+      !motorPositionPctPublished ||
+      positionPct != lastPublishedMotorPositionPct;
+  if (!force && !motorPositionPctChanged) return;
+
+  char payload[12];
+  const int payloadLength =
+      snprintf(payload, sizeof(payload), "%d", positionPct);
+  if (payloadLength < 0 ||
+      payloadLength >= static_cast<int>(sizeof(payload))) {
+    Serial.println(F("[MQTT] Stellposition konnte nicht formatiert werden."));
+    return;
+  }
+
+  const uint16_t packetId = mqttClient.publish(
+      MQTT_MOTOR_POSITION_PCT_TOPIC,
+      MQTT_OPERATIONAL_STATUS_QOS,
+      true,
+      payload);
+  if (packetId == 0) {
+    Serial.println(F("[MQTT] Stellposition konnte nicht gesendet werden."));
+  } else {
+    lastPublishedMotorPositionPct = positionPct;
+    motorPositionPctPublished = true;
+  }
+}
+
 static void publishBmeStatus() {
   float temperature = 0.0f;
   float humidity = 0.0f;
@@ -638,6 +708,8 @@ void mqttStatusTask(unsigned long now) {
     lampModePublished = false;
     lampRelayPublished = false;
     fanTargetPctPublished = false;
+    potiFeedbackValidPublished = false;
+    motorPositionPctPublished = false;
     return;
   }
 
@@ -654,6 +726,7 @@ void mqttStatusTask(unsigned long now) {
     publishGrowStatus(newConnection);
     publishLampRelayStatus(newConnection);
     publishFanTargetPct(newConnection);
+    publishMotorFeedbackStatus(newConnection);
     return;
   }
 
@@ -664,6 +737,8 @@ void mqttStatusTask(unsigned long now) {
   lampModePublished = false;
   lampRelayPublished = false;
   fanTargetPctPublished = false;
+  potiFeedbackValidPublished = false;
+  motorPositionPctPublished = false;
   if (!mqttClient.disconnected()) return;
   const bool reconnectIntervalElapsed =
       now - lastMqttConnectAttempt_ms >= MQTT_RECONNECT_INTERVAL_MS;
