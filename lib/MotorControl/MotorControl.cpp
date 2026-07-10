@@ -26,6 +26,21 @@ int getMotorTargetPct() {
   return targetPct;
 }
 
+bool tryGetMotorPositionPct(int& value) {
+  if (!potiValid) return false;
+
+  const int raw = potiRawNow;
+  const int pct = rawToPercent(raw);
+  if (pct < 0 || pct > 100) return false;
+
+  value = pct;
+  return true;
+}
+
+bool isPotiFeedbackValid() {
+  return potiValid;
+}
+
 void setMotorTargetPct(int pct) {
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;

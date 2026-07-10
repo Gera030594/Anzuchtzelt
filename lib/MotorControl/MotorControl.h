@@ -15,6 +15,8 @@ void initMotorControl();
 MotorFault getMotorFault();
 void clearMotorFault();
 int getMotorTargetPct();
+bool tryGetMotorPositionPct(int& value);
+bool isPotiFeedbackValid();
 void setMotorTargetPct(int pct);
 int tempToSetpoint(float temp);
 void motorDriveToward(int curPct, int tgtPct);
