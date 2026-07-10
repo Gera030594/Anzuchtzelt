@@ -28,6 +28,10 @@ static constexpr char MQTT_PAYLOAD_TRUE[] = "true";
 static constexpr char MQTT_PAYLOAD_FALSE[] = "false";
 static constexpr uint8_t MQTT_SENSOR_QOS = 1;
 static constexpr unsigned long MQTT_SENSOR_PUBLISH_INTERVAL_MS = 10000;
+static constexpr unsigned long MQTT_MOTOR_POSITION_MIN_PUBLISH_INTERVAL_MS =
+    500UL;
+static constexpr unsigned long MQTT_MOTOR_POSITION_STABLE_DELAY_MS = 2000UL;
+static constexpr int MQTT_MOTOR_POSITION_IMMEDIATE_DELTA_PCT = 2;
 static constexpr char MQTT_HEARTBEAT_TOPIC[] =
     "anzuchtzelt/status/heartbeat";
 static constexpr char MQTT_MOTOR_FAULT_TOPIC[] =
@@ -72,6 +76,10 @@ static constexpr char MQTT_DISCOVERY_MOTOR_POSITION_PCT_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_motor_position_pct/config";
 static constexpr char MQTT_DISCOVERY_POTI_FEEDBACK_VALID_TOPIC[] =
     "homeassistant/binary_sensor/anzuchtzelt_poti_feedback_valid/config";
+static constexpr char MQTT_DISCOVERY_ESP_CONNECTION_TOPIC[] =
+    "homeassistant/binary_sensor/anzuchtzelt_esp_connection/config";
+static constexpr char MQTT_DISCOVERY_TIME_SYNCED_TOPIC[] =
+    "homeassistant/binary_sensor/anzuchtzelt_time_synced/config";
 static constexpr uint8_t MQTT_DISCOVERY_QOS = 1;
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_PAYLOAD[] = R"json({
   "name": "Temperatur",
@@ -352,6 +360,52 @@ static constexpr char MQTT_DISCOVERY_POTI_FEEDBACK_VALID_PAYLOAD[] = R"json({
     "sw_version": "18"
   }
 })json";
+static constexpr char MQTT_DISCOVERY_ESP_CONNECTION_PAYLOAD[] = R"json({
+  "name": "ESP32-Verbindung",
+  "unique_id": "anzuchtzelt_esp_connection",
+  "state_topic": "anzuchtzelt/status",
+  "device_class": "connectivity",
+  "entity_category": "diagnostic",
+  "payload_on": "online",
+  "payload_off": "offline",
+  "qos": 1,
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_TIME_SYNCED_PAYLOAD[] = R"json({
+  "name": "Zeitsynchronisation",
+  "unique_id": "anzuchtzelt_time_synced",
+  "state_topic": "anzuchtzelt/status/time_synced",
+  "device_class": "connectivity",
+  "entity_category": "diagnostic",
+  "payload_on": "true",
+  "payload_off": "false",
+  "icon": "mdi:clock-check-outline",
+  "qos": 1,
+  "availability_topic": "anzuchtzelt/status",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
 static unsigned long lastMqttConnectAttempt_ms = 0;
 static bool mqttConnectAttempted = false;
 static bool mqttWasConnected = false;
@@ -372,6 +426,10 @@ static bool lastPublishedPotiFeedbackValid = false;
 static bool potiFeedbackValidPublished = false;
 static int lastPublishedMotorPositionPct = 0;
 static bool motorPositionPctPublished = false;
+static unsigned long lastMotorPositionPublish_ms = 0;
+static int pendingMotorPositionPct = 0;
+static unsigned long pendingMotorPositionSince_ms = 0;
+static bool pendingMotorPositionActive = false;
 static bool lastPublishedTimeSynced = false;
 static bool timeSyncedPublished = false;
 
@@ -550,7 +608,7 @@ static void publishFanTargetPct(bool force) {
   }
 }
 
-static void publishMotorFeedbackStatus(bool force) {
+static void publishMotorFeedbackStatus(unsigned long now, bool force) {
   const bool feedbackValid = isPotiFeedbackValid();
   int positionPct = 0;
   bool positionAvailable = false;
@@ -582,13 +640,42 @@ static void publishMotorFeedbackStatus(bool force) {
 
   if (!valid) {
     motorPositionPctPublished = false;
+    pendingMotorPositionActive = false;
     return;
   }
 
-  const bool motorPositionPctChanged =
-      !motorPositionPctPublished ||
-      positionPct != lastPublishedMotorPositionPct;
-  if (!force && !motorPositionPctChanged) return;
+  if (!force && motorPositionPctPublished) {
+    if (positionPct == lastPublishedMotorPositionPct) {
+      pendingMotorPositionActive = false;
+      return;
+    }
+
+    const int deltaPct =
+        positionPct > lastPublishedMotorPositionPct
+            ? positionPct - lastPublishedMotorPositionPct
+            : lastPublishedMotorPositionPct - positionPct;
+    const bool minimumIntervalElapsed =
+        now - lastMotorPositionPublish_ms >=
+        MQTT_MOTOR_POSITION_MIN_PUBLISH_INTERVAL_MS;
+
+    if (deltaPct >= MQTT_MOTOR_POSITION_IMMEDIATE_DELTA_PCT) {
+      pendingMotorPositionActive = false;
+      if (!minimumIntervalElapsed) return;
+    } else {
+      if (!pendingMotorPositionActive ||
+          pendingMotorPositionPct != positionPct) {
+        pendingMotorPositionPct = positionPct;
+        pendingMotorPositionSince_ms = now;
+        pendingMotorPositionActive = true;
+        return;
+      }
+
+      const bool stableDelayElapsed =
+          now - pendingMotorPositionSince_ms >=
+          MQTT_MOTOR_POSITION_STABLE_DELAY_MS;
+      if (!stableDelayElapsed || !minimumIntervalElapsed) return;
+    }
+  }
 
   char payload[12];
   const int payloadLength =
@@ -609,6 +696,8 @@ static void publishMotorFeedbackStatus(bool force) {
   } else {
     lastPublishedMotorPositionPct = positionPct;
     motorPositionPctPublished = true;
+    lastMotorPositionPublish_ms = now;
+    pendingMotorPositionActive = false;
   }
 }
 
@@ -772,6 +861,24 @@ static void publishHomeAssistantDiscovery() {
     Serial.println(
         F("[MQTT] Poti-Rückmeldung-Discovery konnte nicht gesendet werden."));
   }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_ESP_CONNECTION_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_ESP_CONNECTION_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] ESP32-Verbindungs-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_TIME_SYNCED_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_TIME_SYNCED_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] Zeitsynchronisations-Discovery konnte nicht gesendet werden."));
+  }
 }
 
 static void onMqttConnect(bool sessionPresent) {
@@ -814,6 +921,7 @@ void mqttStatusTask(unsigned long now) {
     fanTargetPctPublished = false;
     potiFeedbackValidPublished = false;
     motorPositionPctPublished = false;
+    pendingMotorPositionActive = false;
     timeSyncedPublished = false;
     return;
   }
@@ -831,7 +939,7 @@ void mqttStatusTask(unsigned long now) {
     publishGrowStatus(newConnection);
     publishLampRelayStatus(newConnection);
     publishFanTargetPct(newConnection);
-    publishMotorFeedbackStatus(newConnection);
+    publishMotorFeedbackStatus(now, newConnection);
     publishTimeSyncStatus(newConnection);
     return;
   }
@@ -845,6 +953,7 @@ void mqttStatusTask(unsigned long now) {
   fanTargetPctPublished = false;
   potiFeedbackValidPublished = false;
   motorPositionPctPublished = false;
+  pendingMotorPositionActive = false;
   timeSyncedPublished = false;
   if (!mqttClient.disconnected()) return;
   const bool reconnectIntervalElapsed =
