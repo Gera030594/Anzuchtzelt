@@ -16,6 +16,7 @@ Thumbs.db
 secrets.h
 credentials.h
 wifi_secrets.h
+include/mqtt_secrets.h
 .env.pio/
 .vscode/c_cpp_properties.json
 .pio/
