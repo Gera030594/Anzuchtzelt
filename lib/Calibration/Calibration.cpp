@@ -15,6 +15,15 @@ int calRaw[CAL_MAX_PTS] = { 0 };        // Roh-ADC je Punkt (sortiert nach Raw)
 int calPct[CAL_MAX_PTS] = { 0 };        // Ziel-% je Punkt (mit calRaw korrespond.)
 bool calSlotUsed[CAL_MAX_PTS] = { 0 };  // Slot-belegt-Flags
 bool calMode = false;                   // im Kalibrierassistent?
+
+int getCalibrationPointCount() {
+  return calN;
+}
+
+bool isCalibrationModeActive() {
+  return calMode;
+}
+
 int rawToPercent(int raw) {
   // Falls keine valide LUT: Fallback auf 2-Punkt-Linear aus deinen Plausibilitätsgrenzen
   if (calN < 2) {

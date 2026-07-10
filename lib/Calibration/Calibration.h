@@ -5,6 +5,8 @@
 
 extern Preferences prefs;
 
+int getCalibrationPointCount();
+bool isCalibrationModeActive();
 void openNVS();
 void calInitLoad();
 void calSave();
