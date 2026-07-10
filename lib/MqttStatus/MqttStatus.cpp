@@ -38,6 +38,10 @@ static constexpr char MQTT_DISCOVERY_HUMIDITY_TOPIC[] =
     "homeassistant/sensor/anzuchtzelt_humidity/config";
 static constexpr char MQTT_DISCOVERY_BME_ERROR_TOPIC[] =
     "homeassistant/binary_sensor/anzuchtzelt_bme_error/config";
+static constexpr char MQTT_DISCOVERY_HEARTBEAT_TOPIC[] =
+    "homeassistant/sensor/anzuchtzelt_heartbeat/config";
+static constexpr char MQTT_DISCOVERY_MOTOR_FAULT_TOPIC[] =
+    "homeassistant/sensor/anzuchtzelt_motor_fault/config";
 static constexpr uint8_t MQTT_DISCOVERY_QOS = 1;
 static constexpr char MQTT_DISCOVERY_TEMPERATURE_PAYLOAD[] = R"json({
   "name": "Temperatur",
@@ -113,6 +117,50 @@ static constexpr char MQTT_DISCOVERY_BME_ERROR_PAYLOAD[] = R"json({
   "entity_category": "diagnostic",
   "payload_on": "false",
   "payload_off": "true",
+  "qos": 1,
+  "availability_topic": "anzuchtzelt/status",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_HEARTBEAT_PAYLOAD[] = R"json({
+  "name": "Heartbeat",
+  "unique_id": "anzuchtzelt_heartbeat",
+  "state_topic": "anzuchtzelt/status/heartbeat",
+  "entity_category": "diagnostic",
+  "icon": "mdi:heart-pulse",
+  "qos": 1,
+  "availability_topic": "anzuchtzelt/status",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "device": {
+    "identifiers": ["anzuchtzelt_esp32"],
+    "name": "Anzuchtzelt",
+    "manufacturer": "Eigenbau",
+    "model": "ESP32 Zeltsteuerung",
+    "sw_version": "Hauptprogramm_V18"
+  },
+  "origin": {
+    "name": "Hauptprogramm_V18",
+    "sw_version": "18"
+  }
+})json";
+static constexpr char MQTT_DISCOVERY_MOTOR_FAULT_PAYLOAD[] = R"json({
+  "name": "Motorfehler",
+  "unique_id": "anzuchtzelt_motor_fault",
+  "state_topic": "anzuchtzelt/status/motor_fault",
+  "entity_category": "diagnostic",
+  "icon": "mdi:alert-circle-outline",
   "qos": 1,
   "availability_topic": "anzuchtzelt/status",
   "payload_available": "online",
@@ -268,6 +316,24 @@ static void publishHomeAssistantDiscovery() {
           true,
           MQTT_DISCOVERY_BME_ERROR_PAYLOAD) == 0) {
     Serial.println(F("[MQTT] BME-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_HEARTBEAT_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_HEARTBEAT_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] Heartbeat-Discovery konnte nicht gesendet werden."));
+  }
+
+  if (mqttClient.publish(
+          MQTT_DISCOVERY_MOTOR_FAULT_TOPIC,
+          MQTT_DISCOVERY_QOS,
+          true,
+          MQTT_DISCOVERY_MOTOR_FAULT_PAYLOAD) == 0) {
+    Serial.println(
+        F("[MQTT] Motorfehler-Discovery konnte nicht gesendet werden."));
   }
 }
 
