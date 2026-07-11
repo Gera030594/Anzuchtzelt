@@ -41,7 +41,7 @@ static bool timeReached(unsigned long now, unsigned long deadline) {
   return static_cast<int32_t>(now - deadline) >= 0;
 }
 
-void IRAM_ATTR hbISR() {
+static void IRAM_ATTR hbISR() {
   portENTER_CRITICAL_ISR(&heartbeatMux);
   hbSeen = true;            // Jetzt wissen wir: echter RX ist da
   lastHB_RX_ms = millis();  // Zeitpunkt der letzten RX-Flanke merken

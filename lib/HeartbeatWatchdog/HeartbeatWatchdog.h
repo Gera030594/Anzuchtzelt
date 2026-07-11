@@ -10,7 +10,6 @@ enum class HeartbeatStatus {
   Timeout
 };
 
-void IRAM_ATTR hbISR();
 void initRelay();
 void initHeartbeat();
 void heartbeatTask(unsigned long now);
