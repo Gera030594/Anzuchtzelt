@@ -33,8 +33,9 @@ const unsigned long HB_TIMEOUT = 20000UL;       // 20 s ohne RX -> Timeout
 const unsigned long HB_PULSE_LEN = 500UL;       // Pulsbreite 500 ms
 
 /************ Motor / Regelung ************/
-const int POTI_MIN_RAW = 50;                 // Plausibel-Grenzen Poti-Rohwert (ADC)
-const int POTI_MAX_RAW = 4045;               // (4095 ist 12 Bit-Max; etwas Luft)
+const int POTI_MIN_RAW = 0;                 // Plausibel-Grenzen Poti-Rohwert (ADC)
+const int POTI_MAX_RAW = 5000;               // (4095 ist 12 Bit-Max; etwas Luft)
+const unsigned long POTI_RECOVERY_STABLE_MS = 2000UL;  // Poti muss nach Fehler 2 s ununterbrochen gültig sein
 const int DEAD_BAND_PCT = 2;                 // Totband ±2 % verhindert Zittern
 const int MIN_DUTY = 140;                    // Mindest-PWM zum Überwinden der Haftreibung (0..1023)
 const int MAX_DUTY = 900;                    // Max-PWM, Reserven lassen

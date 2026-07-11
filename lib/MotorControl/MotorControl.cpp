@@ -11,6 +11,8 @@ static int targetPct = 25;                   // Soll-Position in %
 int activeTargetPct = 25;                    // Zielwert der aktuell laufenden Bewegung
 int moveDir = 0;                             // +1 = hoch, -1 = runter, 0 = keine Bewegung
 static MotorFault motorFault = MOTOR_FAULT_NONE;  // Motorfehlerstatus
+static bool potiRecoveryActive = false;
+static unsigned long potiRecoveryStart_ms = 0;
 bool moveActive = false;                     // Bewegung aktiv?
 unsigned long moveStart_ms = 0;              // Startzeit aktive Bewegung
 
@@ -123,6 +125,8 @@ void motorControlTask(unsigned long now) {
     motorStop();
     moveActive = false;
     moveDir = 0;
+    potiRecoveryActive = false;
+    potiRecoveryStart_ms = 0;
     return;
   }
 
@@ -131,7 +135,31 @@ void motorControlTask(unsigned long now) {
     motorStop();
     moveActive = false;
     moveDir = 0;
+    potiRecoveryActive = false;
+    potiRecoveryStart_ms = 0;
     return;
+  }
+
+  if (motorFault == MOTOR_FAULT_POTI_INVALID) {
+    motorStop();
+    moveActive = false;
+    moveDir = 0;
+
+    if (!potiRecoveryActive) {
+      potiRecoveryActive = true;
+      potiRecoveryStart_ms = now;
+      return;
+    }
+
+    if (now - potiRecoveryStart_ms < POTI_RECOVERY_STABLE_MS) {
+      return;
+    }
+
+    motorFault = MOTOR_FAULT_NONE;
+    potiRecoveryActive = false;
+    potiRecoveryStart_ms = 0;
+
+    Serial.println(F("[MOTOR] Poti-Rückmeldung stabil, Fehler zurückgesetzt."));
   }
 
   // Aktuelle Poti-Position in % bestimmen
