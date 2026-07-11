@@ -5,6 +5,8 @@
 #include "Pins.h"
 
 /************ Heartbeat ************/
+static portMUX_TYPE heartbeatMux = portMUX_INITIALIZER_UNLOCKED;
+
 volatile bool hbSeen = false;  // wurde seit Boot/Reset ein Heartbeat empfangen?
 unsigned long boot_ms = 0;
 volatile unsigned long lastHB_RX_ms = 0;        // Zeit letzte empfangene Flanke
@@ -16,11 +18,36 @@ volatile bool hbTimeoutLatched = false;         // <— NEU: Timeout nur einmal 
 /************ Relais Spannungsversorgung des Watchdog C3-ESP32******************/
 bool relayActive = false;
 unsigned long relayStart_ms = 0;
+
+struct HeartbeatSnapshot {
+  bool seen;
+  unsigned long lastRxMs;
+  unsigned long bootMs;
+  unsigned long nextResetEligibleMs;
+};
+
+static HeartbeatSnapshot getHeartbeatSnapshot() {
+  HeartbeatSnapshot snapshot;
+  portENTER_CRITICAL(&heartbeatMux);
+  snapshot.seen = hbSeen;
+  snapshot.lastRxMs = lastHB_RX_ms;
+  snapshot.bootMs = boot_ms;
+  snapshot.nextResetEligibleMs = hbNextResetEligible_ms;
+  portEXIT_CRITICAL(&heartbeatMux);
+  return snapshot;
+}
+
+static bool timeReached(unsigned long now, unsigned long deadline) {
+  return static_cast<int32_t>(now - deadline) >= 0;
+}
+
 void IRAM_ATTR hbISR() {
+  portENTER_CRITICAL_ISR(&heartbeatMux);
   hbSeen = true;            // Jetzt wissen wir: echter RX ist da
   lastHB_RX_ms = millis();  // Zeitpunkt der letzten RX-Flanke merken
   hbTimeoutLatched = false;
   hbNextResetEligible_ms = lastHB_RX_ms + HB_TIMEOUT;
+  portEXIT_CRITICAL_ISR(&heartbeatMux);
 }
 
 void initRelay() {
@@ -30,22 +57,30 @@ void initRelay() {
 }
 
 void initHeartbeat() {
-  boot_ms = millis();                             // <— Bootzeit merken
-  hbNextResetEligible_ms = boot_ms + HB_TIMEOUT;  // erste Schonfrist ab Boot
+  const unsigned long heartbeatBootMs = millis();
+  portENTER_CRITICAL(&heartbeatMux);
+  boot_ms = heartbeatBootMs;                             // <— Bootzeit merken
+  hbNextResetEligible_ms = boot_ms + HB_TIMEOUT;         // erste Schonfrist ab Boot
+  hbSeen = false;                                        // Noch kein Heartbeat gesehen
+  lastHB_RX_ms = 0;                                      // 0 = unbekannt/nie empfangen
+  portEXIT_CRITICAL(&heartbeatMux);
+
   pinMode(HB_OUT_PIN, OUTPUT);
   digitalWrite(HB_OUT_PIN, LOW);                                     // Heartbeat-Sender-Pin
   pinMode(HB_IN_PIN, INPUT_PULLUP);                                  // Heartbeat-Empfang (mit Pullup)
   attachInterrupt(digitalPinToInterrupt(HB_IN_PIN), hbISR, RISING);  // RX-Flanke mit ISR
-  hbSeen = false;                                                    // Noch kein Heartbeat gesehen
-  lastHB_RX_ms = 0;                                                  // 0 = unbekannt/nie empfangen
   Serial.println(F("[HB] Heartbeat RX/TX initialisiert."));
 }
 
 HeartbeatStatus getHeartbeatStatus(unsigned long now) {
-  unsigned long sinceRef = hbSeen ? lastHB_RX_ms : boot_ms;
-  bool timedOut = (now - sinceRef > HB_TIMEOUT);
-  bool inGrace = (!hbSeen && (now - boot_ms <= HB_TIMEOUT));
-  bool hbOk = (hbSeen && !timedOut);
+  (void)now;
+  const HeartbeatSnapshot snapshot = getHeartbeatSnapshot();
+  const unsigned long heartbeatNow = millis();
+  const unsigned long sinceRef = snapshot.seen ? snapshot.lastRxMs : snapshot.bootMs;
+  const unsigned long elapsed = heartbeatNow - sinceRef;
+  const bool timedOut = elapsed > HB_TIMEOUT;
+  const bool inGrace = !snapshot.seen && elapsed <= HB_TIMEOUT;
+  const bool hbOk = snapshot.seen && !timedOut;
 
   if (hbOk) {
     return HeartbeatStatus::Ok;
@@ -71,25 +106,47 @@ void heartbeatTask(unsigned long now) {
 
   // 2) Überwachen mit Schonfrist nach Boot
   // Wenn noch nie ein HB gesehen wurde, messen wir die "Inaktivität" ab Boot.
-  unsigned long sinceRef = hbSeen ? lastHB_RX_ms : boot_ms;
-  bool timedOut = (now - sinceRef > HB_TIMEOUT);
+  const HeartbeatSnapshot snapshot = getHeartbeatSnapshot();
+  const unsigned long heartbeatNow = millis();
+  const unsigned long sinceRef = snapshot.seen ? snapshot.lastRxMs : snapshot.bootMs;
+  const unsigned long elapsed = heartbeatNow - sinceRef;
+  const bool timedOut = elapsed > HB_TIMEOUT;
 
   // ===== Edge-getriggerter FAILSAFE nur beim Eintreten des Timeouts =====
-  if (timedOut && !hbTimeoutLatched) {
-    hbTimeoutLatched = true;  // nur EINMAL pro Timeout
-   
-  }
-  // Relais: erst nach abgelaufener Schonfrist/Timeout auslösen
-  // Nur auslösen, wenn Timeout UND Cooldown abgelaufen
-  if (timedOut && !relayActive && now >= hbNextResetEligible_ms) {
-    relayActive = true;
-    relayStart_ms = now;
-    hbSeen = false;  // bleibt rot bis echte RX-ISR kommt
-    digitalWrite(C3_WD_RELAIS_PIN, HIGH);
-    Serial.println(F("[HB] Timeout → Relais aktiviert (Reset des C3)!"));
-    hbNextResetEligible_ms = now + HB_TIMEOUT;  // nächste Chance erst wieder in 20 s
+  if (timedOut) {
+    portENTER_CRITICAL(&heartbeatMux);
+    const bool heartbeatUnchanged =
+        hbSeen == snapshot.seen && lastHB_RX_ms == snapshot.lastRxMs;
+    if (heartbeatUnchanged && !hbTimeoutLatched) {
+      hbTimeoutLatched = true;  // nur EINMAL pro Timeout
+    }
+    portEXIT_CRITICAL(&heartbeatMux);
   }
 
+  // Relais: erst nach abgelaufener Schonfrist/Timeout auslösen
+  // Nur auslösen, wenn Timeout UND Cooldown abgelaufen
+  bool activateRelay = false;
+  if (timedOut && !relayActive &&
+      timeReached(heartbeatNow, snapshot.nextResetEligibleMs)) {
+    portENTER_CRITICAL(&heartbeatMux);
+    const bool heartbeatUnchanged =
+        hbSeen == snapshot.seen && lastHB_RX_ms == snapshot.lastRxMs;
+    const bool resetDeadlineUnchanged =
+        hbNextResetEligible_ms == snapshot.nextResetEligibleMs;
+    if (heartbeatUnchanged && resetDeadlineUnchanged) {
+      hbSeen = false;  // bleibt rot bis echte RX-ISR kommt
+      hbNextResetEligible_ms = heartbeatNow + HB_TIMEOUT;
+      activateRelay = true;
+    }
+    portEXIT_CRITICAL(&heartbeatMux);
+  }
+
+  if (activateRelay) {
+    relayActive = true;
+    relayStart_ms = now;
+    digitalWrite(C3_WD_RELAIS_PIN, HIGH);
+    Serial.println(F("[HB] Timeout → Relais aktiviert (Reset des C3)!"));
+  }
 
   // Relais nach Pulsdauer wieder loslassen (ohne künstliches Zurücksetzen des Timers)
   if (relayActive && (now - relayStart_ms >= RELAY_PULSE_LEN)) {
